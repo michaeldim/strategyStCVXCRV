@@ -8,18 +8,27 @@ contract MockTradeFactory {
 
     event RouteEnabled(address fromToken, address toToken);
 
-    function enable(address fromToken, address toToken) external returns (bool) {
+    function enable(
+        address fromToken,
+        address toToken
+    ) external returns (bool) {
         routes[fromToken][toToken] = true;
         emit RouteEnabled(fromToken, toToken);
         return true;
     }
 
-    function disable(address fromToken, address toToken) external returns (bool) {
+    function disable(
+        address fromToken,
+        address toToken
+    ) external returns (bool) {
         routes[fromToken][toToken] = false;
         return true;
     }
 
-    function isEnabled(address fromToken, address toToken) external view returns (bool) {
+    function isEnabled(
+        address fromToken,
+        address toToken
+    ) external view returns (bool) {
         return routes[fromToken][toToken];
     }
 }

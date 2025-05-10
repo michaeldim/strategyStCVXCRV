@@ -31,17 +31,19 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
         address _wrapperAddress,
         address _providedAuctionAddress,
         address _tradeFactoryAddress
-    ) StCVXCRVStrategy(
-        _asset,
-        _name,
-        _cvxcrv,
-        _crv,
-        _cvx,
-        _crvUsd,
-        _wrapperAddress,
-        _providedAuctionAddress,
-        _tradeFactoryAddress
-    ) {
+    )
+        StCVXCRVStrategy(
+            _asset,
+            _name,
+            _cvxcrv,
+            _crv,
+            _cvx,
+            _crvUsd,
+            _wrapperAddress,
+            _providedAuctionAddress,
+            _tradeFactoryAddress
+        )
+    {
         // Store auction reference
         AUCTION = MockAuction(_providedAuctionAddress);
     }
@@ -80,12 +82,18 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
             if (tokenBalance > 0) {
                 // Swap the reward token for more asset (cvxCRV) through the auction
                 IERC20(token).approve(address(AUCTION), tokenBalance);
-                AUCTION.initiateTrade(tokenBalance, token, address(asset), address(this));
+                AUCTION.initiateTrade(
+                    tokenBalance,
+                    token,
+                    address(asset),
+                    address(this)
+                );
             }
         }
 
         // Stake any newly acquired asset into the wrapper
-        uint256 newAssets = IERC20(asset).balanceOf(address(this)) - totalAssets;
+        uint256 newAssets = IERC20(asset).balanceOf(address(this)) -
+            totalAssets;
 
         if (newAssets > 0) {
             IERC20(asset).approve(address(WRAPPER), newAssets);
@@ -111,7 +119,10 @@ contract ForkedTest is Test {
 
     function setUp() public {
         // Fork Ethereum mainnet with environment variable or default Alchemy URL
-        string memory rpcUrl = vm.envOr("ETH_RPC_URL", string("https://eth-mainnet.alchemyapi.io/v2/demo"));
+        string memory rpcUrl = vm.envOr(
+            "ETH_RPC_URL",
+            string("https://eth-mainnet.alchemyapi.io/v2/demo")
+        );
         vm.createSelectFork(rpcUrl);
         console.log("=== Mainnet Forked Test ===");
 
@@ -131,15 +142,15 @@ contract ForkedTest is Test {
         console.log("Creating TestStrategy with real token addresses...");
         vm.prank(management); // Prank as management before deploying TestStrategy
         strategy = new ForkedFixedStrategy(
-            CVXCRV,                // asset
-            "Test Strategy",       // name
-            CVXCRV,                // cvxcrv
-            CRV,                   // crv
-            CVX,                   // cvx
-            CRVUSD,                // crvUsd
-            WRAPPER,               // real wrapper address
-            address(mockAuction),  // mock auction
-            address(0)             // tradeFactory
+            CVXCRV, // asset
+            "Test Strategy", // name
+            CVXCRV, // cvxcrv
+            CRV, // crv
+            CVX, // cvx
+            CRVUSD, // crvUsd
+            WRAPPER, // real wrapper address
+            address(mockAuction), // mock auction
+            address(0) // tradeFactory
         );
 
         console.log("Strategy deployed at:", address(strategy));
@@ -155,7 +166,7 @@ contract ForkedTest is Test {
     function testForkedHarvest() public {
         console.log("Testing harvest on forked mainnet...");
 
-        uint256 depositAmount = 1 * 10**18; // 1 CVXCRV
+        uint256 depositAmount = 1 * 10 ** 18; // 1 CVXCRV
 
         // Deal CVXCRV to the keeper
         deal(CVXCRV, keeper, depositAmount);
@@ -171,7 +182,8 @@ contract ForkedTest is Test {
 
         // Now, try to execute the harvest
         vm.prank(keeper);
-        try strategy.testHarvest() returns (uint256 profit) { // Corrected: expects a single uint256
+        try strategy.testHarvest() returns (uint256 profit) {
+            // Corrected: expects a single uint256
             console.log("Harvest successful! Profit:");
             console.logUint(profit);
         } catch Error(string memory reason) {

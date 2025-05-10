@@ -120,7 +120,9 @@ contract FunctionSignatureTest is Setup {
 
         // The call should revert as expected
         vm.expectRevert("Function collision detected");
-        (bool success, ) = address(strategy).call(abi.encodeWithSignature("someCollisionFunction()"));
+        (bool success, ) = address(strategy).call(
+            abi.encodeWithSignature("someCollisionFunction()")
+        );
         assertFalse(success);
     }
 }
