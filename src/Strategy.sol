@@ -1,248 +1,356 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
-import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
+import {BaseHealthCheck, ERC20} from "@periphery/Bases/HealthCheck/BaseHealthCheck.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-// Import interfaces for many popular DeFi projects, or add your own!
-//import "../interfaces/<protocol>/<Interface>.sol";
+import {ICvxCrvStakingWrapper} from "./interfaces/ICvxCrvStakingWrapper.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AuctionSwapper, Auction} from "@periphery/swappers/AuctionSwapper.sol";
+import {TradeFactorySwapper} from "@periphery/swappers/TradeFactorySwapper.sol";
+import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
- * The `TokenizedStrategy` variable can be used to retrieve the strategies
- * specific storage data your contract.
- *
- *       i.e. uint256 totalAssets = TokenizedStrategy.totalAssets()
- *
- * This can not be used for write functions. Any TokenizedStrategy
- * variables that need to be updated post deployment will need to
- * come from an external call from the strategies specific `management`.
+ * @title cvxCRV Staking and Compounding Strategy
+ * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
+ * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseHealthCheck for safety,
+ *      AuctionSwapper for auction-based reward sales, and TradeFactorySwapper for direct DEX reward sales.
  */
-
-// NOTE: To implement permissioned functions you can use the onlyManagement, onlyEmergencyAuthorized and onlyKeepers modifiers
-
-contract Strategy is BaseStrategy {
+contract Strategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwapper, ReentrancyGuard {
     using SafeERC20 for ERC20;
+    using SafeERC20 for IERC20;
+
+    // --- Token addresses ---
+    // asset is inherited from BaseHealthCheck as `public ERC20 immutable asset`
+    address public immutable CVXCRV;
+    address public immutable CRV;
+    address public immutable CVX;
+    address public immutable CRVUSD;
+
+    // --- Strategy state ---
+    ICvxCrvStakingWrapper public immutable WRAPPER;
+    uint256 public depositLimit = type(uint256).max;
+    uint256 public idleThreshold = 25 * 10**18;
+
+    // --- Reward selling config ---
+    bool public useTradeFactory = true;
+    bool public useAuction = true;
+    mapping(address => uint256) public minAmountToSell;
+    address[] public strategyRewardTokens;
+
+    /*//////////////////////////////////////////////////////////////
+                          CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
 
     constructor(
         address _asset,
-        string memory _name
-    ) BaseStrategy(_asset, _name) {}
+        string memory _name,
+        address _cvxcrv,
+        address _crv,
+        address _cvx,
+        address _crvUsd,
+        address _wrapperAddress,
+        address _providedAuctionAddress,
+        address _tradeFactoryAddress
+    )
+        BaseHealthCheck(_asset, _name)
+    {
+        CVXCRV = _cvxcrv;
+        CRV = _crv;
+        CVX = _cvx;
+        CRVUSD = _crvUsd;
+        WRAPPER = ICvxCrvStakingWrapper(_wrapperAddress);
+
+        strategyRewardTokens.push(CRV);
+        strategyRewardTokens.push(CRVUSD);
+
+        IERC20(CVXCRV).safeApprove(address(WRAPPER), type(uint256).max);
+
+        // Setup AuctionSwapper
+        if (_providedAuctionAddress != address(0)) {
+            auction = _providedAuctionAddress;
+        }
+        _enableAuction(CRV, CVXCRV);
+        _enableAuction(CVX, CVXCRV);
+        _enableAuction(CRVUSD, CVXCRV);
+
+        // Setup TradeFactorySwapper
+        if (_tradeFactoryAddress != address(0)) {
+            _setTradeFactory(_tradeFactoryAddress, CVXCRV);
+            for (uint i = 0; i < strategyRewardTokens.length; i++) {
+                _addToken(strategyRewardTokens[i], CVXCRV);
+            }
+        }
+    }
 
     /*//////////////////////////////////////////////////////////////
-                NEEDED TO BE OVERRIDDEN BY STRATEGIST
+                          VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @dev Can deploy up to '_amount' of 'asset' in the yield source.
-     *
-     * This function is called at the end of a {deposit} or {mint}
-     * call. Meaning that unless a whitelist is implemented it will
-     * be entirely permissionless and thus can be sandwiched or otherwise
-     * manipulated.
-     *
-     * @param _amount The amount of 'asset' that the strategy can attempt
-     * to deposit in the yield source.
-     */
+    /// @notice Returns balances of unsold reward tokens and if they exceed minimums for trading
+    function pendingRewards() external view returns (
+        uint256 crv,
+        uint256 cvx,
+        uint256 crvUsd,
+        bool crvExceedsMin,
+        bool cvxExceedsMin,
+        bool crvUsdExceedsMin
+    ) {
+        crv = IERC20(CRV).balanceOf(address(this));
+        cvx = IERC20(CVX).balanceOf(address(this));
+        crvUsd = IERC20(CRVUSD).balanceOf(address(this));
+
+        crvExceedsMin = crv > minAmountToSell[CRV];
+        cvxExceedsMin = cvx > minAmountToSell[CVX];
+        crvUsdExceedsMin = crvUsd > minAmountToSell[CRVUSD];
+    }
+
+    /// @notice Returns current trade factory and tokens set up for trading
+    function tradeFactoryInfo() external view returns (address _tradeFactory, address[] memory _tokens) {
+        _tradeFactory = tradeFactory();
+        _tokens = super.rewardTokens();
+    }
+
+    /// @notice Returns swap configuration status and minimums for each reward token
+    function swapperConfig() external view returns (
+        bool _useTradeFactory,
+        bool _useAuction,
+        address _tradeFactory,
+        address _auction,
+        uint256[] memory _minAmounts,
+        address[] memory _tokens
+    ) {
+        _useTradeFactory = useTradeFactory;
+        _useAuction = useAuction;
+        _tradeFactory = tradeFactory();
+        _auction = auction;
+
+        _tokens = new address[](strategyRewardTokens.length);
+        _minAmounts = new uint256[](strategyRewardTokens.length);
+
+        for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
+            _tokens[i] = strategyRewardTokens[i];
+            _minAmounts[i] = minAmountToSell[strategyRewardTokens[i]];
+        }
+    }
+
+    /// @notice Get current health check configuration
+    function getHealthCheckConfig() external view returns (bool _enabled, uint256 _profitLimit, uint256 _lossLimit) {
+        _enabled = doHealthCheck;
+        _profitLimit = profitLimitRatio();
+        _lossLimit = lossLimitRatio();
+    }
+
+    /// @notice Gets max amount of asset that can be withdrawn
+    function availableWithdrawLimit(address /*_owner*/) public view override returns (uint256) {
+        return IERC20(CVXCRV).balanceOf(address(this));
+    }
+
+    /// @notice Gets max amount of asset that can be deposited
+    function availableDepositLimit(address /*_owner*/) public view override returns (uint256) {
+        if (TokenizedStrategy.isShutdown()) return 0;
+        uint256 currentTotalAssets = TokenizedStrategy.totalAssets();
+        return currentTotalAssets >= depositLimit ? 0 : depositLimit - currentTotalAssets;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                      REQUIRED OVERRIDES
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev Deploys up to '_amount' of asset in the yield source (stakes cvxCRV)
     function _deployFunds(uint256 _amount) internal override {
-        // TODO: implement deposit logic EX:
-        //
-        //      lendingPool.deposit(address(asset), _amount ,0);
+        try WRAPPER.stake(_amount, address(this)) {
+            // Success
+        } catch Error(string memory reason) {
+            revert(reason);
+        } catch (bytes memory) {
+            revert("WRAPPER.stake low-level revert");
+        }
     }
 
-    /**
-     * @dev Should attempt to free the '_amount' of 'asset'.
-     *
-     * NOTE: The amount of 'asset' that is already loose has already
-     * been accounted for.
-     *
-     * This function is called during {withdraw} and {redeem} calls.
-     * Meaning that unless a whitelist is implemented it will be
-     * entirely permissionless and thus can be sandwiched or otherwise
-     * manipulated.
-     *
-     * Should not rely on asset.balanceOf(address(this)) calls other than
-     * for diff accounting purposes.
-     *
-     * Any difference between `_amount` and what is actually freed will be
-     * counted as a loss and passed on to the withdrawer. This means
-     * care should be taken in times of illiquidity. It may be better to revert
-     * if withdraws are simply illiquid so not to realize incorrect losses.
-     *
-     * @param _amount, The amount of 'asset' to be freed.
-     */
+    /// @dev Attempts to free '_amount' of asset (unstake cvxCRV)
     function _freeFunds(uint256 _amount) internal override {
-        // TODO: implement withdraw logic EX:
-        //
-        //      lendingPool.withdraw(address(asset), _amount);
+        try WRAPPER.withdraw(_amount) {
+            // Success
+        } catch {
+            // Continue if withdraw fails
+        }
     }
 
-    /**
-     * @dev Internal function to harvest all rewards, redeploy any idle
-     * funds and return an accurate accounting of all funds currently
-     * held by the Strategy.
-     *
-     * This should do any needed harvesting, rewards selling, accrual,
-     * redepositing etc. to get the most accurate view of current assets.
-     *
-     * NOTE: All applicable assets including loose assets should be
-     * accounted for in this function.
-     *
-     * Care should be taken when relying on oracles or swap values rather
-     * than actual amounts as all Strategy profit/loss accounting will
-     * be done based on this returned value.
-     *
-     * This can still be called post a shutdown, a strategist can check
-     * `TokenizedStrategy.isShutdown()` to decide if funds should be
-     * redeployed or simply realize any profits/losses.
-     *
-     * @return _totalAssets A trusted and accurate account for the total
-     * amount of 'asset' the strategy currently holds including idle funds.
-     */
+    /// @dev Core harvest function. Claims rewards, sells them for asset, and reinvests
     function _harvestAndReport()
         internal
+        virtual
         override
         returns (uint256 _totalAssets)
     {
-        // TODO: Implement harvesting logic and accurate accounting EX:
-        //
-        //      if(!TokenizedStrategy.isShutdown()) {
-        //          _claimAndSellRewards();
-        //      }
-        //      _totalAssets = aToken.balanceOf(address(this)) + asset.balanceOf(address(this));
-        //
-        _totalAssets = asset.balanceOf(address(this));
+        if (!TokenizedStrategy.isShutdown()) {
+            _claimRewardsFromWrapper();
+        }
+
+        _sellRewards();
+
+        uint256 cvxCrvBal = IERC20(CVXCRV).balanceOf(address(this));
+        if (cvxCrvBal > 0 && !TokenizedStrategy.isShutdown()) {
+            try WRAPPER.stake(cvxCrvBal, address(this)) {
+                // Success
+            } catch {
+                // Continue if stake fails, funds remain in strategy
+            }
+        }
+
+        // Get balances to calculate total assets
+        _totalAssets = asset.balanceOf(address(this)) + WRAPPER.balanceOf(address(this));
+    }
+
+    /// @dev Emergency withdrawal if strategy is shutdown
+    function _emergencyWithdraw(uint256 _amount) internal override {
+        uint256 available = IERC20(CVXCRV).balanceOf(address(this));
+        if (_amount > available) {
+            _amount = available;
+        }
+        try WRAPPER.withdraw(_amount) {
+            // Success
+        } catch {
+            // Continue if withdraw fails
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
-                    OPTIONAL TO OVERRIDE BY STRATEGIST
+                      INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @notice Gets the max amount of `asset` that can be withdrawn.
-     * @dev Defaults to an unlimited amount for any address. But can
-     * be overridden by strategists.
-     *
-     * This function will be called before any withdraw or redeem to enforce
-     * any limits desired by the strategist. This can be used for illiquid
-     * or sandwichable strategies.
-     *
-     *   EX:
-     *       return asset.balanceOf(yieldSource);
-     *
-     * This does not need to take into account the `_owner`'s share balance
-     * or conversion rates from shares to assets.
-     *
-     * @param . The address that is withdrawing from the strategy.
-     * @return . The available amount that can be withdrawn in terms of `asset`
-     */
-    function availableWithdrawLimit(
-        address /*_owner*/
-    ) public view override returns (uint256) {
-        // NOTE: Withdraw limitations such as liquidity constraints should be accounted for HERE
-        //  rather than _freeFunds in order to not count them as losses on withdraws.
-
-        // TODO: If desired implement withdraw limit logic and any needed state variables.
-
-        // EX:
-        // if(yieldSource.notShutdown()) {
-        //    return asset.balanceOf(address(this)) + asset.balanceOf(yieldSource);
-        // }
-        return asset.balanceOf(address(this));
+    /// @dev Claims rewards from the wrapper, with try/catch for safety
+    function _claimRewardsFromWrapper() internal {
+        try WRAPPER.getReward(address(this)) {
+            // Success
+        } catch {
+            // Continue if getReward fails
+        }
     }
 
-    /**
-     * @notice Gets the max amount of `asset` that an address can deposit.
-     * @dev Defaults to an unlimited amount for any address. But can
-     * be overridden by strategists.
-     *
-     * This function will be called before any deposit or mints to enforce
-     * any limits desired by the strategist. This can be used for either a
-     * traditional deposit limit or for implementing a whitelist etc.
-     *
-     *   EX:
-     *      if(isAllowed[_owner]) return super.availableDepositLimit(_owner);
-     *
-     * This does not need to take into account any conversion rates
-     * from shares to assets. But should know that any non max uint256
-     * amounts may be converted to shares. So it is recommended to keep
-     * custom amounts low enough as not to cause overflow when multiplied
-     * by `totalSupply`.
-     *
-     * @param . The address that is depositing into the strategy.
-     * @return . The available amount the `_owner` can deposit in terms of `asset`
-     *
-    function availableDepositLimit(
-        address _owner
-    ) public view override returns (uint256) {
-        TODO: If desired Implement deposit limit logic and any needed state variables .
-        
-        EX:    
-            uint256 totalAssets = TokenizedStrategy.totalAssets();
-            return totalAssets >= depositLimit ? 0 : depositLimit - totalAssets;
-    }
-    */
-
-    /**
-     * @dev Optional function for strategist to override that can
-     *  be called in between reports.
-     *
-     * If '_tend' is used tendTrigger() will also need to be overridden.
-     *
-     * This call can only be called by a permissioned role so may be
-     * through protected relays.
-     *
-     * This can be used to harvest and compound rewards, deposit idle funds,
-     * perform needed position maintenance or anything else that doesn't need
-     * a full report for.
-     *
-     *   EX: A strategy that can not deposit funds without getting
-     *       sandwiched can use the tend when a certain threshold
-     *       of idle to totalAssets has been reached.
-     *
-     * This will have no effect on PPS of the strategy till report() is called.
-     *
-     * @param _totalIdle The current amount of idle funds that are available to deploy.
-     *
-    function _tend(uint256 _totalIdle) internal override {}
-    */
-
-    /**
-     * @dev Optional trigger to override if tend() will be used by the strategy.
-     * This must be implemented if the strategy hopes to invoke _tend().
-     *
-     * @return . Should return true if tend() should be called by keeper or false if not.
-     *
-    function _tendTrigger() internal view override returns (bool) {}
-    */
-
-    /**
-     * @dev Optional function for a strategist to override that will
-     * allow management to manually withdraw deployed funds from the
-     * yield source if a strategy is shutdown.
-     *
-     * This should attempt to free `_amount`, noting that `_amount` may
-     * be more than is currently deployed.
-     *
-     * NOTE: This will not realize any profits or losses. A separate
-     * {report} will be needed in order to record any profit/loss. If
-     * a report may need to be called after a shutdown it is important
-     * to check if the strategy is shutdown during {_harvestAndReport}
-     * so that it does not simply re-deploy all funds that had been freed.
-     *
-     * EX:
-     *   if(freeAsset > 0 && !TokenizedStrategy.isShutdown()) {
-     *       depositFunds...
-     *    }
-     *
-     * @param _amount The amount of asset to attempt to free.
-     *
-    function _emergencyWithdraw(uint256 _amount) internal override {
-        TODO: If desired implement simple logic to free deployed funds.
-
-        EX:
-            _amount = min(_amount, aToken.balanceOf(address(this)));
-            _freeFunds(_amount);
+    /// @dev Called by TradeFactory during direct trades to claim rewards
+    function _claimRewards() internal override {
+        _claimRewardsFromWrapper();
     }
 
-    */
+    /// @dev Sells reward tokens that exceed minimum amounts
+    function _sellRewards() internal {
+        address _tf = tradeFactory();
+        for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
+            address reward = strategyRewardTokens[i];
+            uint256 balance = IERC20(reward).balanceOf(address(this));
+            uint256 minAmount = minAmountToSell[reward];
+
+            if (balance > minAmount) {
+                if (useAuction && auction != address(0)) {
+                    _kickAuction(reward);
+                    if (_tf != address(0)) {
+                        try ITradeFactory(_tf).enable(reward, CVXCRV) {} catch {}
+                    }
+                } else if (useTradeFactory && _tf != address(0)) {
+                    try ITradeFactory(_tf).enable(reward, CVXCRV) {} catch {}
+                }
+            }
+        }
+    }
+
+    /// @dev Starts auction for a reward token
+    function _kickAuction(address _from) internal virtual override returns (uint256) {
+        if (auction == address(0)) {
+            return 0;
+        }
+        uint256 _balance = IERC20(_from).balanceOf(address(this));
+        IERC20(_from).safeTransfer(auction, _balance);
+        uint256 id = Auction(auction).kick(_from);
+        return id;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                      MANAGEMENT FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Set reward weight for staking wrapper
+    function setRewardWeight(uint256 _weight) external onlyManagement {
+        require(_weight <= 10000, "Weight must be <= 10000");
+        WRAPPER.setRewardWeight(_weight);
+    }
+
+    /// @notice Update idleThreshold for staking idle cvxCRV
+    function setIdleThreshold(uint256 _idleThreshold) external onlyManagement {
+        idleThreshold = _idleThreshold;
+    }
+
+    /// @notice Set maximum deposit limit
+    function setDepositLimit(uint256 _limit) external onlyManagement {
+        depositLimit = _limit;
+    }
+
+    /// @notice Set the address of the Trade Factory
+    function setTradeFactory(address _tradeFactory) external onlyManagement {
+        _setTradeFactory(_tradeFactory, CVXCRV);
+    }
+
+    /// @notice Set minimum amount for a token to be considered for swapping
+    function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
+        minAmountToSell[_token] = _minAmount;
+    }
+
+    /// @notice Batch set minimum amounts for multiple tokens
+    function setMinAmountsToSell(address[] calldata _tokens, uint256[] calldata _minAmounts) external onlyManagement {
+        require(_tokens.length == _minAmounts.length, "Arrays must be same length");
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            minAmountToSell[_tokens[i]] = _minAmounts[i];
+        }
+    }
+
+    /// @notice Enable/disable TradeFactory for swapping rewards
+    function setUseTradeFactory(bool _useTradeFactory) external onlyManagement {
+        require(_useTradeFactory == false || tradeFactory() != address(0), "TradeFactory not set");
+        useTradeFactory = _useTradeFactory;
+    }
+
+    /// @notice Enable/disable Auctions for swapping rewards
+    function setUseAuction(bool _useAuction) external onlyManagement {
+        require(_useAuction == false || auction != address(0), "Auction not set");
+        useAuction = _useAuction;
+    }
+
+    /// @notice Set the address of the auction contract
+    function setAuctionAddress(address _newAuctionAddress) external onlyManagement {
+        auction = _newAuctionAddress;
+    }
+
+    /// @notice Toggle health check functionality
+    function setHealthCheck(bool _doHealthCheck) external onlyManagement {
+        setDoHealthCheck(_doHealthCheck);
+    }
+
+    /// @notice Set max profit that can be reported (basis points)
+    function setStrategyProfitLimitRatio(uint256 _profitLimitRatio) external onlyManagement {
+        _setProfitLimitRatio(_profitLimitRatio);
+    }
+
+    /// @notice Set max loss that can be reported (basis points)
+    function setStrategyLossLimitRatio(uint256 _lossLimitRatio) external onlyManagement {
+        _setLossLimitRatio(_lossLimitRatio);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                      KEEPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Claim rewards and optionally sell them
+    function claimAndSellRewards(bool _sell) external onlyKeepers {
+        _claimRewardsFromWrapper();
+
+        if (_sell) {
+            _sellRewards();
+        }
+    }
+
+    /// @notice Claim rewards (does not sell)
+    function manualClaimRewards() external onlyManagement {
+        _claimRewardsFromWrapper();
+    }
 }
