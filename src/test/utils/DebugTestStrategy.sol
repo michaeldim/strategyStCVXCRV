@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
-import {Strategy} from "../../Strategy.sol";
+import {StCVXCRVStrategy} from "../../StCVXCRVStrategy.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.sol";
 import {Auction} from "@periphery/Auctions/Auction.sol";
 
-contract DebugTestStrategy is Strategy {
+contract DebugTestStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
 
     constructor(
@@ -20,7 +20,7 @@ contract DebugTestStrategy is Strategy {
         address _wrapperAddress,
         address _providedAuctionAddress,
         address _tradeFactoryAddress
-    ) Strategy(
+    ) StCVXCRVStrategy(
         _asset,
         _name,
         _cvxcrv,

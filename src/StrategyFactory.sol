@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.18;
 
-import {Strategy, ERC20} from "./Strategy.sol";
+import {StCVXCRVStrategy, ERC20} from "./StCVXCRVStrategy.sol";
 import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
 import {TestStrategy} from "./test/TestStrategy.sol";
 
@@ -43,7 +43,7 @@ contract StrategyFactory {
         address _tradeFactoryAddress
     ) public returns (address) {
         IStrategyInterface _newStrategy = IStrategyInterface(
-            address(new Strategy(_asset, _name, _cvxcrv, _crv, _cvx, _crvUsd, _wrapper, _auctionLogic, _tradeFactoryAddress))
+            address(new StCVXCRVStrategy(_asset, _name, _cvxcrv, _crv, _cvx, _crvUsd, _wrapper, _auctionLogic, _tradeFactoryAddress))
         );
         _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
         _newStrategy.setKeeper(keeper);

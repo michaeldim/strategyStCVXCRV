@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import {ERC20} from "../Strategy.sol";
+import {ERC20} from "../StCVXCRVStrategy.sol";
 import {Setup} from "./utils/Setup.sol";
 
 contract FunctionSignatureTest is Setup {

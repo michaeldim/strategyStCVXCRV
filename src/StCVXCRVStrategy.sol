@@ -16,7 +16,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
  * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseHealthCheck for safety,
  *      AuctionSwapper for auction-based reward sales, and TradeFactorySwapper for direct DEX reward sales.
  */
-contract Strategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwapper, ReentrancyGuard {
+contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwapper, ReentrancyGuard {
     using SafeERC20 for ERC20;
     using SafeERC20 for IERC20;
 
