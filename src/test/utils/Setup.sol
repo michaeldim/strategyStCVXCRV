@@ -57,7 +57,6 @@ contract Setup is ExtendedTest, IEvents {
     uint256 public profitMaxUnlockTime = 10 days;
 
     function setUp() public virtual {
-
         // DEBUG: Step 1
         emit log("Setup: Step 1 - Start setUp");
         // Deploy a real MockERC20 for cvxCRV and use it for all tests
@@ -71,7 +70,10 @@ contract Setup is ExtendedTest, IEvents {
         emit log("Setup: Step 6 - Deploying MockAuction");
         address cvxCrvAddr = address(mockCvxCrv); // Define cvxCrvAddr before use
         mockAuction = new MockAuction(cvxCrvAddr); // Pass cvxCrvAddr to constructor
-        emit log_named_address("Setup: Step 7 - MockAuction deployed at", address(mockAuction));
+        emit log_named_address(
+            "Setup: Step 7 - MockAuction deployed at",
+            address(mockAuction)
+        );
 
         // Mock CvxCrvStakingWrapper calls
         address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
@@ -116,7 +118,13 @@ contract Setup is ExtendedTest, IEvents {
         address auctionFactory = 0xCfA510188884F199fcC6e750764FAAbE6e56ec40;
         vm.mockCall(
             auctionFactory,
-            abi.encodeWithSelector(bytes4(keccak256("createNewAuction(address,address,address,uint256,uint256)"))),
+            abi.encodeWithSelector(
+                bytes4(
+                    keccak256(
+                        "createNewAuction(address,address,address,uint256,uint256)"
+                    )
+                )
+            ),
             abi.encode(address(mockAuction)) // Use the deployed mockAuction address
         );
         emit log("Setup: Step 13 - After auctionFactory mock");
@@ -291,14 +299,20 @@ contract Setup is ExtendedTest, IEvents {
         // Patch: Mock factory.set_protocol_fee_recipient(address) to always succeed
         vm.mockCall(
             address(strategyFactory),
-            abi.encodeWithSelector(IFactory.set_protocol_fee_recipient.selector, management),
+            abi.encodeWithSelector(
+                IFactory.set_protocol_fee_recipient.selector,
+                management
+            ),
             ""
         );
 
         // Patch: Mock factory.set_protocol_fee_bps(uint16) to always succeed
         vm.mockCall(
             address(strategyFactory),
-            abi.encodeWithSelector(IFactory.set_protocol_fee_bps.selector, uint16(0)),
+            abi.encodeWithSelector(
+                IFactory.set_protocol_fee_bps.selector,
+                uint16(0)
+            ),
             ""
         );
     }
@@ -323,7 +337,7 @@ contract Setup is ExtendedTest, IEvents {
                     CRVUSD,
                     WRAPPER,
                     address(0), // _providedAuctionAddress - will be set later via setAuction
-                    address(0)  // _tradeFactoryAddress - will be set later
+                    address(0) // _tradeFactoryAddress - will be set later
                 )
             )
         );
@@ -357,7 +371,9 @@ contract Setup is ExtendedTest, IEvents {
         emit log_string("setUpStrategy: Profit max unlock time set");
 
         // Set up mock auction and trade factory
-        emit log_string("setUpStrategy: Setting up mock auction (using the one from Setup.sol)");
+        emit log_string(
+            "setUpStrategy: Setting up mock auction (using the one from Setup.sol)"
+        );
         // mockAuction is already deployed and initialized in Setup.sol's setUp function
         emit log_string("setUpStrategy: Creating mock trade factory");
         MockTradeFactory tradeFactory = new MockTradeFactory();
@@ -410,7 +426,12 @@ contract Setup is ExtendedTest, IEvents {
         // Mock transferFrom for asset to strategy
         vm.mockCall(
             address(asset),
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", _user, address(_strategy), _amount),
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)",
+                _user,
+                address(_strategy),
+                _amount
+            ),
             abi.encode(true)
         );
 
@@ -438,7 +459,9 @@ contract Setup is ExtendedTest, IEvents {
         // Mock CVXCRV safeTransferFrom to succeed
         vm.mockCall(
             CVXCRV,
-            abi.encodeWithSignature("safeTransferFrom(address,address,uint256)"),
+            abi.encodeWithSignature(
+                "safeTransferFrom(address,address,uint256)"
+            ),
             abi.encode()
         );
 
@@ -465,7 +488,11 @@ contract Setup is ExtendedTest, IEvents {
         // Manually update asset balances to reflect the deposit
         // This is needed because the mock calls don't actually update balances
         deal(address(asset), _user, asset.balanceOf(_user) - _amount);
-        deal(address(asset), address(_strategy), asset.balanceOf(address(_strategy)) + _amount);
+        deal(
+            address(asset),
+            address(_strategy),
+            asset.balanceOf(address(_strategy)) + _amount
+        );
     }
 
     function mintAndDepositIntoStrategy(
@@ -501,7 +528,10 @@ contract Setup is ExtendedTest, IEvents {
         deal(address(_asset), _to, balanceBefore + _amount);
     }
 
-    function setFees(uint16 _protocolFee, uint16 _performanceFee) public virtual {
+    function setFees(
+        uint16 _protocolFee,
+        uint16 _performanceFee
+    ) public virtual {
         // Ensure management is the caller for these sensitive operations
         vm.prank(management);
         IFactory(factory).set_protocol_fee_recipient(management); // Corrected to use IFactory(factory)
@@ -514,7 +544,12 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     // Helper function to withdraw from strategy
-    function withdrawFromStrategy(address _strategy, address _user, uint256 _shares, uint256 _assetAmount) internal {
+    function withdrawFromStrategy(
+        address _strategy,
+        address _user,
+        uint256 _shares,
+        uint256 _assetAmount
+    ) internal {
         // Mock CVXCRV balances
         address CVXCRV = address(asset);
         vm.mockCall(

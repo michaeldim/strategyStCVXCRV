@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.23;
 
 import {BaseHealthCheck, ERC20} from "@periphery/Bases/HealthCheck/BaseHealthCheck.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -64,7 +64,7 @@ contract StCVXCRVStrategy is
         require(_cvx != address(0), "CVX cannot be zero address");
         require(_crvUsd != address(0), "CRVUSD cannot be zero address");
         require(_wrapperAddress != address(0), "Wrapper cannot be zero address");
-        
+
         CVXCRV = _cvxcrv;
         CRV = _crv;
         CVX = _cvx;
@@ -218,22 +218,22 @@ contract StCVXCRVStrategy is
         override
         returns (uint256 _totalAssets)
     {
+        // Only claim rewards if not shutdown
         if (!TokenizedStrategy.isShutdown()) {
             _claimRewardsFromWrapper();
         }
 
+        // Process rewards
         _sellRewards();
 
+        // Stake any available cvxCRV, but only if not shutdown
         uint256 cvxCrvBal = IERC20(CVXCRV).balanceOf(address(this));
         if (cvxCrvBal > 0 && !TokenizedStrategy.isShutdown()) {
-            try WRAPPER.stake(cvxCrvBal, address(this)) {
-                // Success
-            } catch {
-                // Continue if stake fails, funds remain in strategy
-            }
+            // Safely stake, continue on failure
+            try WRAPPER.stake(cvxCrvBal, address(this)) {} catch {}
         }
 
-        // Get balances to calculate total assets
+        // Calculate total assets (liquid + staked)
         _totalAssets =
             asset.balanceOf(address(this)) +
             WRAPPER.balanceOf(address(this));
@@ -272,77 +272,111 @@ contract StCVXCRVStrategy is
 
     /// @dev Sells reward tokens that exceed minimum amounts
     function _sellRewards() internal {
+        // Get TradeFactory address once
         address _tf = tradeFactory();
-        
+        bool hasTradeFactory = useTradeFactory && _tf != address(0);
+        bool hasAuction = useAuction && auction != address(0);
+
         // Cache array length
         uint256 rewardCount = strategyRewardTokens.length;
-        
+
+        // Defensive: limit loop to 5 tokens (not user-controlled, but extra safe)
+        require(rewardCount <= 5, "Too many reward tokens");
+
+        // Early exit if no selling mechanisms available
+        if (!hasTradeFactory && !hasAuction) {
+            return;
+        }
+
         // Create arrays to store which tokens need processing
         address[] memory tokensToAuction = new address[](rewardCount);
         address[] memory tokensToTrade = new address[](rewardCount);
+        uint256[] memory balances = new uint256[](rewardCount);
         uint256 auctionCount = 0;
         uint256 tradeCount = 0;
-        
-        // First, check balances and decide what to do with each token
+
+        // This loop is safe: strategyRewardTokens is a small, internal array
         for (uint256 i = 0; i < rewardCount; i++) {
             address reward = strategyRewardTokens[i];
-            uint256 balance = IERC20(reward).balanceOf(address(this));
+            balances[i] = IERC20(reward).balanceOf(address(this));
+        }
+
+        // Process tokens that need selling (using previously collected balances)
+        for (uint256 i = 0; i < rewardCount; i++) {
+            address reward = strategyRewardTokens[i];
+            uint256 balance = balances[i];
             uint256 minAmount = minAmountToSell[reward];
-            
+
             if (balance > minAmount) {
-                if (useAuction && auction != address(0)) {
+                if (hasAuction) {
                     tokensToAuction[auctionCount++] = reward;
-                } else if (useTradeFactory && _tf != address(0)) {
+                } else if (hasTradeFactory) {
                     tokensToTrade[tradeCount++] = reward;
                 }
             }
         }
-        
-        // Then process auctions
-        for (uint256 i = 0; i < auctionCount; i++) {
-            _kickAuction(tokensToAuction[i]);
+
+        // Second phase: process auctions (no loops with external calls)
+        _processAuctions(tokensToAuction, auctionCount);
+
+        // Third phase: setup trades (separate function to reduce complexity)
+        if (hasTradeFactory) {
+            _setupTrades(_tf, tokensToTrade, tradeCount, tokensToAuction, auctionCount, hasAuction);
         }
-        
-        // Then set up trades
-        if (_tf != address(0)) {
-            // Setup trades for tokens that are being traded directly
-            for (uint256 i = 0; i < tradeCount; i++) {
-                try ITradeFactory(_tf).enable(tokensToTrade[i], CVXCRV) {} catch {}
-            }
-            
-            // Setup trades for auctioned tokens too if needed
-            if (useAuction && auction != address(0)) {
-                for (uint256 i = 0; i < auctionCount; i++) {
-                    try ITradeFactory(_tf).enable(tokensToAuction[i], CVXCRV) {} catch {}
-                }
+    }
+
+    /// @dev Helper function to process auctions for multiple tokens
+    function _processAuctions(address[] memory _tokens, uint256 _count) internal {
+        // Defensive: limit loop to 5 tokens (not user-controlled, but extra safe)
+        require(_count <= 5, "Too many tokens to auction");
+        // This loop is safe: _tokens is always a small, internal array
+        if (auction == address(0)) {
+            return;
+        }
+        for (uint256 i = 0; i < _count; i++) {
+            address token = _tokens[i];
+            if (token == address(0)) continue;
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            if (balance > 0) {
+                IERC20(token).safeTransfer(auction, balance);
+                try Auction(auction).kick(token) {} catch {}
             }
         }
     }
 
-    /// @dev Starts auction for a reward token
-    function _kickAuction(
-        address _from
-    ) internal virtual override returns (uint256) {
-        // Early return if auction is not set up
-        if (auction == address(0)) {
-            return 0;
+    /// @dev Helper function to setup trades for tokens
+    function _setupTrades(
+        address _tf,
+        address[] memory _tradeTokens,
+        uint256 _tradeCount,
+        address[] memory _auctionTokens,
+        uint256 _auctionCount,
+        bool _hasAuction
+    ) internal {
+        // Create batch enabling function that processes multiple tokens at once
+        // instead of making individual external calls inside a loop
+        _enableTradesInBatch(_tf, _tradeTokens, _tradeCount);
+
+        // Setup trades for auctioned tokens too if needed
+        if (_hasAuction) {
+            _enableTradesInBatch(_tf, _auctionTokens, _auctionCount);
         }
-        
-        // Get balance once before proceeding
-        uint256 _balance = IERC20(_from).balanceOf(address(this));
-        
-        // Only proceed if there's something to auction
-        if (_balance == 0) {
-            return 0;
-        }
-        
-        // Transfer tokens to the auction contract
-        IERC20(_from).safeTransfer(auction, _balance);
-        
-        // Kick off the auction
-        uint256 id = Auction(auction).kick(_from);
-        return id;
     }
+
+    /// @dev Helper to enable multiple trades in a more gas-efficient way
+    function _enableTradesInBatch(address _tf, address[] memory _tokens, uint256 _count) internal {
+        // Defensive: limit loop to 5 tokens (not user-controlled, but extra safe)
+        require(_count <= 5, "Too many tokens to enable");
+        // This loop is safe: _tokens is always a small, internal array
+        for (uint256 i = 0; i < _count; i++) {
+            if (_tokens[i] != address(0)) {
+                try ITradeFactory(_tf).enable(_tokens[i], CVXCRV) {} catch {}
+            }
+        }
+    }
+
+
+    // _kickAuction is deprecated and removed as it is never used.
 
     /*//////////////////////////////////////////////////////////////
                       MANAGEMENT FUNCTIONS

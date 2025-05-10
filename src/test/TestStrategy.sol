@@ -17,17 +17,19 @@ contract TestStrategy is StCVXCRVStrategy {
         address _wrapperAddress,
         address _providedAuctionAddress,
         address _tradeFactoryAddress
-    ) StCVXCRVStrategy(
-        _asset,
-        _name,
-        _cvxcrv,
-        _crv,
-        _cvx,
-        _crvUsd,
-        _wrapperAddress,
-        _providedAuctionAddress,
-        _tradeFactoryAddress
-    ) {}
+    )
+        StCVXCRVStrategy(
+            _asset,
+            _name,
+            _cvxcrv,
+            _crv,
+            _cvx,
+            _crvUsd,
+            _wrapperAddress,
+            _providedAuctionAddress,
+            _tradeFactoryAddress
+        )
+    {}
 
     function setMockShutdown(bool _isShutdown) external {
         mockIsShutdown = _isShutdown;

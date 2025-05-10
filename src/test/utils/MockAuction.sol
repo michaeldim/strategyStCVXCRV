@@ -19,7 +19,9 @@ contract MockAuction is IYearnAuction {
     event Disabled(address indexed token);
 
     constructor(address _want) {
-        want = _want == address(0) ? address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7) : _want; // Default to cvxCRV if not specified
+        want = _want == address(0)
+            ? address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7)
+            : _want; // Default to cvxCRV if not specified
     }
 
     function kick(address token) external override returns (uint256) {
@@ -54,11 +56,18 @@ contract MockAuction is IYearnAuction {
         address _destToken,
         address _receiver
     ) external returns (uint256) {
-        require(_destToken == want || want == address(0), "MockAuction: destToken must be want");
+        require(
+            _destToken == want || want == address(0),
+            "MockAuction: destToken must be want"
+        );
         require(enabled[_srcToken], "MockAuction: srcToken not enabled");
 
         // Transfer source tokens from sender to this contract
-        bool success = IERC20(_srcToken).transferFrom(msg.sender, address(this), _amount);
+        bool success = IERC20(_srcToken).transferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
         require(success, "MockAuction: transferFrom failed");
 
         // Determine return amount
