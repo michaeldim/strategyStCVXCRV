@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.18;
+pragma solidity 0.8.19;
 
 import {BaseHealthCheck, ERC20} from "@periphery/Bases/HealthCheck/BaseHealthCheck.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -16,7 +16,12 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
  * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseHealthCheck for safety,
  *      AuctionSwapper for auction-based reward sales, and TradeFactorySwapper for direct DEX reward sales.
  */
-contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwapper, ReentrancyGuard {
+contract StCVXCRVStrategy is
+    BaseHealthCheck,
+    AuctionSwapper,
+    TradeFactorySwapper,
+    ReentrancyGuard
+{
     using SafeERC20 for ERC20;
     using SafeERC20 for IERC20;
 
@@ -30,7 +35,7 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     // --- Strategy state ---
     ICvxCrvStakingWrapper public immutable WRAPPER;
     uint256 public depositLimit = type(uint256).max;
-    uint256 public idleThreshold = 25 * 10**18;
+    uint256 public idleThreshold = 25 * 10 ** 18;
 
     // --- Reward selling config ---
     bool public useTradeFactory = true;
@@ -52,9 +57,14 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         address _wrapperAddress,
         address _providedAuctionAddress,
         address _tradeFactoryAddress
-    )
-        BaseHealthCheck(_asset, _name)
-    {
+    ) BaseHealthCheck(_asset, _name) {
+        // Zero address validations
+        require(_cvxcrv != address(0), "CVXCRV cannot be zero address");
+        require(_crv != address(0), "CRV cannot be zero address");
+        require(_cvx != address(0), "CVX cannot be zero address");
+        require(_crvUsd != address(0), "CRVUSD cannot be zero address");
+        require(_wrapperAddress != address(0), "Wrapper cannot be zero address");
+        
         CVXCRV = _cvxcrv;
         CRV = _crv;
         CVX = _cvx;
@@ -88,14 +98,18 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Returns balances of unsold reward tokens and if they exceed minimums for trading
-    function pendingRewards() external view returns (
-        uint256 crv,
-        uint256 cvx,
-        uint256 crvUsd,
-        bool crvExceedsMin,
-        bool cvxExceedsMin,
-        bool crvUsdExceedsMin
-    ) {
+    function pendingRewards()
+        external
+        view
+        returns (
+            uint256 crv,
+            uint256 cvx,
+            uint256 crvUsd,
+            bool crvExceedsMin,
+            bool cvxExceedsMin,
+            bool crvUsdExceedsMin
+        )
+    {
         crv = IERC20(CRV).balanceOf(address(this));
         cvx = IERC20(CVX).balanceOf(address(this));
         crvUsd = IERC20(CRVUSD).balanceOf(address(this));
@@ -106,20 +120,28 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     }
 
     /// @notice Returns current trade factory and tokens set up for trading
-    function tradeFactoryInfo() external view returns (address _tradeFactory, address[] memory _tokens) {
+    function tradeFactoryInfo()
+        external
+        view
+        returns (address _tradeFactory, address[] memory _tokens)
+    {
         _tradeFactory = tradeFactory();
         _tokens = super.rewardTokens();
     }
 
     /// @notice Returns swap configuration status and minimums for each reward token
-    function swapperConfig() external view returns (
-        bool _useTradeFactory,
-        bool _useAuction,
-        address _tradeFactory,
-        address _auction,
-        uint256[] memory _minAmounts,
-        address[] memory _tokens
-    ) {
+    function swapperConfig()
+        external
+        view
+        returns (
+            bool _useTradeFactory,
+            bool _useAuction,
+            address _tradeFactory,
+            address _auction,
+            uint256[] memory _minAmounts,
+            address[] memory _tokens
+        )
+    {
         _useTradeFactory = useTradeFactory;
         _useAuction = useAuction;
         _tradeFactory = tradeFactory();
@@ -128,29 +150,41 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         _tokens = new address[](strategyRewardTokens.length);
         _minAmounts = new uint256[](strategyRewardTokens.length);
 
-        for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
+        uint256 rewardCount = strategyRewardTokens.length;
+        for (uint256 i = 0; i < rewardCount; i++) {
             _tokens[i] = strategyRewardTokens[i];
             _minAmounts[i] = minAmountToSell[strategyRewardTokens[i]];
         }
     }
 
     /// @notice Get current health check configuration
-    function getHealthCheckConfig() external view returns (bool _enabled, uint256 _profitLimit, uint256 _lossLimit) {
+    function getHealthCheckConfig()
+        external
+        view
+        returns (bool _enabled, uint256 _profitLimit, uint256 _lossLimit)
+    {
         _enabled = doHealthCheck;
         _profitLimit = profitLimitRatio();
         _lossLimit = lossLimitRatio();
     }
 
     /// @notice Gets max amount of asset that can be withdrawn
-    function availableWithdrawLimit(address /*_owner*/) public view override returns (uint256) {
+    function availableWithdrawLimit(
+        address /*_owner*/
+    ) public view override returns (uint256) {
         return IERC20(CVXCRV).balanceOf(address(this));
     }
 
     /// @notice Gets max amount of asset that can be deposited
-    function availableDepositLimit(address /*_owner*/) public view override returns (uint256) {
+    function availableDepositLimit(
+        address /*_owner*/
+    ) public view override returns (uint256) {
         if (TokenizedStrategy.isShutdown()) return 0;
         uint256 currentTotalAssets = TokenizedStrategy.totalAssets();
-        return currentTotalAssets >= depositLimit ? 0 : depositLimit - currentTotalAssets;
+        return
+            currentTotalAssets >= depositLimit
+                ? 0
+                : depositLimit - currentTotalAssets;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -200,7 +234,9 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         }
 
         // Get balances to calculate total assets
-        _totalAssets = asset.balanceOf(address(this)) + WRAPPER.balanceOf(address(this));
+        _totalAssets =
+            asset.balanceOf(address(this)) +
+            WRAPPER.balanceOf(address(this));
     }
 
     /// @dev Emergency withdrawal if strategy is shutdown
@@ -237,31 +273,73 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     /// @dev Sells reward tokens that exceed minimum amounts
     function _sellRewards() internal {
         address _tf = tradeFactory();
-        for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
+        
+        // Cache array length
+        uint256 rewardCount = strategyRewardTokens.length;
+        
+        // Create arrays to store which tokens need processing
+        address[] memory tokensToAuction = new address[](rewardCount);
+        address[] memory tokensToTrade = new address[](rewardCount);
+        uint256 auctionCount = 0;
+        uint256 tradeCount = 0;
+        
+        // First, check balances and decide what to do with each token
+        for (uint256 i = 0; i < rewardCount; i++) {
             address reward = strategyRewardTokens[i];
             uint256 balance = IERC20(reward).balanceOf(address(this));
             uint256 minAmount = minAmountToSell[reward];
-
+            
             if (balance > minAmount) {
                 if (useAuction && auction != address(0)) {
-                    _kickAuction(reward);
-                    if (_tf != address(0)) {
-                        try ITradeFactory(_tf).enable(reward, CVXCRV) {} catch {}
-                    }
+                    tokensToAuction[auctionCount++] = reward;
                 } else if (useTradeFactory && _tf != address(0)) {
-                    try ITradeFactory(_tf).enable(reward, CVXCRV) {} catch {}
+                    tokensToTrade[tradeCount++] = reward;
+                }
+            }
+        }
+        
+        // Then process auctions
+        for (uint256 i = 0; i < auctionCount; i++) {
+            _kickAuction(tokensToAuction[i]);
+        }
+        
+        // Then set up trades
+        if (_tf != address(0)) {
+            // Setup trades for tokens that are being traded directly
+            for (uint256 i = 0; i < tradeCount; i++) {
+                try ITradeFactory(_tf).enable(tokensToTrade[i], CVXCRV) {} catch {}
+            }
+            
+            // Setup trades for auctioned tokens too if needed
+            if (useAuction && auction != address(0)) {
+                for (uint256 i = 0; i < auctionCount; i++) {
+                    try ITradeFactory(_tf).enable(tokensToAuction[i], CVXCRV) {} catch {}
                 }
             }
         }
     }
 
     /// @dev Starts auction for a reward token
-    function _kickAuction(address _from) internal virtual override returns (uint256) {
+    function _kickAuction(
+        address _from
+    ) internal virtual override returns (uint256) {
+        // Early return if auction is not set up
         if (auction == address(0)) {
             return 0;
         }
+        
+        // Get balance once before proceeding
         uint256 _balance = IERC20(_from).balanceOf(address(this));
+        
+        // Only proceed if there's something to auction
+        if (_balance == 0) {
+            return 0;
+        }
+        
+        // Transfer tokens to the auction contract
         IERC20(_from).safeTransfer(auction, _balance);
+        
+        // Kick off the auction
         uint256 id = Auction(auction).kick(_from);
         return id;
     }
@@ -292,13 +370,22 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     }
 
     /// @notice Set minimum amount for a token to be considered for swapping
-    function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
+    function setMinAmountToSell(
+        address _token,
+        uint256 _minAmount
+    ) external onlyManagement {
         minAmountToSell[_token] = _minAmount;
     }
 
     /// @notice Batch set minimum amounts for multiple tokens
-    function setMinAmountsToSell(address[] calldata _tokens, uint256[] calldata _minAmounts) external onlyManagement {
-        require(_tokens.length == _minAmounts.length, "Arrays must be same length");
+    function setMinAmountsToSell(
+        address[] calldata _tokens,
+        uint256[] calldata _minAmounts
+    ) external onlyManagement {
+        require(
+            _tokens.length == _minAmounts.length,
+            "Arrays must be same length"
+        );
         for (uint256 i = 0; i < _tokens.length; i++) {
             minAmountToSell[_tokens[i]] = _minAmounts[i];
         }
@@ -306,18 +393,27 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
 
     /// @notice Enable/disable TradeFactory for swapping rewards
     function setUseTradeFactory(bool _useTradeFactory) external onlyManagement {
-        require(_useTradeFactory == false || tradeFactory() != address(0), "TradeFactory not set");
+        require(
+            !_useTradeFactory || tradeFactory() != address(0),
+            "TradeFactory not set"
+        );
         useTradeFactory = _useTradeFactory;
     }
 
     /// @notice Enable/disable Auctions for swapping rewards
     function setUseAuction(bool _useAuction) external onlyManagement {
-        require(_useAuction == false || auction != address(0), "Auction not set");
+        require(
+            !_useAuction || auction != address(0),
+            "Auction not set"
+        );
         useAuction = _useAuction;
     }
 
     /// @notice Set the address of the auction contract
-    function setAuctionAddress(address _newAuctionAddress) external onlyManagement {
+    function setAuctionAddress(
+        address _newAuctionAddress
+    ) external onlyManagement {
+        require(_newAuctionAddress != address(0), "Auction cannot be zero address");
         auction = _newAuctionAddress;
     }
 
@@ -327,12 +423,16 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     }
 
     /// @notice Set max profit that can be reported (basis points)
-    function setStrategyProfitLimitRatio(uint256 _profitLimitRatio) external onlyManagement {
+    function setStrategyProfitLimitRatio(
+        uint256 _profitLimitRatio
+    ) external onlyManagement {
         _setProfitLimitRatio(_profitLimitRatio);
     }
 
     /// @notice Set max loss that can be reported (basis points)
-    function setStrategyLossLimitRatio(uint256 _lossLimitRatio) external onlyManagement {
+    function setStrategyLossLimitRatio(
+        uint256 _lossLimitRatio
+    ) external onlyManagement {
         _setLossLimitRatio(_lossLimitRatio);
     }
 

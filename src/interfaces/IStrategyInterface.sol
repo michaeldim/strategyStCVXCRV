@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.18;
+pragma solidity 0.8.19;
 
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 
@@ -14,7 +14,10 @@ interface IStrategyInterface is IStrategy {
     function setUseTradeFactory(bool _useTradeFactory) external;
     function setUseAuction(bool _useAuction) external;
     function setMinAmountToSell(address _token, uint256 _minAmount) external;
-    function setMinAmountsToSell(address[] calldata _tokens, uint256[] calldata _minAmounts) external;
+    function setMinAmountsToSell(
+        address[] calldata _tokens,
+        uint256[] calldata _minAmounts
+    ) external;
 
     // Health check configuration
     function setHealthCheck(bool _doHealthCheck) external;
