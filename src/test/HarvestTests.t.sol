@@ -3,7 +3,7 @@ pragma solidity ^0.8.18;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {Strategy} from "../Strategy.sol";
+import {StCVXCRVStrategy} from "../StCVXCRVStrategy.sol";
 import {TestStrategy} from "./TestStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICvxCrvStakingWrapper} from "../interfaces/ICvxCrvStakingWrapper.sol";
@@ -30,7 +30,7 @@ import {MockERC20} from "./utils/MockERC20.sol";
  * @notice A modified version of the Strategy that exposes the _harvestAndReport
  * function without relying on TokenizedStrategy for isShutdown checks
  */
-contract FixedStrategy is Strategy {
+contract FixedStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
     uint256 public constant INITIAL_DEPOSIT = 100e18;
 
@@ -51,7 +51,7 @@ contract FixedStrategy is Strategy {
         address _wrapperAddress,
         address _providedAuctionAddress,
         address _tradeFactoryAddress
-    ) Strategy(
+    ) StCVXCRVStrategy(
         _asset,
         _name,
         _cvxcrv,

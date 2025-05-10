@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 // import { console2 } from "forge-std/console2.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
-import {ERC20} from "../../Strategy.sol";
+import {ERC20} from "../../StCVXCRVStrategy.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {ICvxCrvStakingWrapper} from "../../interfaces/ICvxCrvStakingWrapper.sol";
 import {MockAuction} from "./MockAuction.sol"; // Corrected path

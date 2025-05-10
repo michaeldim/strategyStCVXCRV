@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
-import "../Strategy.sol";
+import "../StCVXCRVStrategy.sol";
 
 /// @notice Test-only subclass to expose internal harvest logic for testing
-contract TestStrategy is Strategy {
+contract TestStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
 
     constructor(
@@ -17,7 +17,7 @@ contract TestStrategy is Strategy {
         address _wrapperAddress,
         address _providedAuctionAddress,
         address _tradeFactoryAddress
-    ) Strategy(
+    ) StCVXCRVStrategy(
         _asset,
         _name,
         _cvxcrv,
