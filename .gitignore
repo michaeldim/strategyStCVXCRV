@@ -18,3 +18,21 @@ node_modules/
 
 yarn.lock
 .DS_Store
+
+# Coverage reports
+coverage-report/
+coverage-final/
+lcov.info
+*.lcov
+forge-coverage-report.md
+
+# Backup and archive files
+.archive/
+*.backup
+*~
+*.swp
+*.swo
+*.tmp
+*.temp
+*.old
+
