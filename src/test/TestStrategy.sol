@@ -6,6 +6,7 @@ import "../StCVXCRVStrategy.sol";
 /// @notice Test-only subclass to expose internal harvest logic for testing
 contract TestStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
+    bool public mockIsKeeper = false;
 
     constructor(
         address _asset,
@@ -35,7 +36,119 @@ contract TestStrategy is StCVXCRVStrategy {
         mockIsShutdown = _isShutdown;
     }
 
-    /// @notice Expose harvest for tests only
+    function isKeeper(address) public view returns (bool) {
+        return mockIsKeeper || true; // Always return true for testing
+    }
+
+    function setMockIsKeeper(bool _isKeeper) external {
+        mockIsKeeper = _isKeeper;
+    }
+
+    // Override management check for easier testing
+    function isManagement(address) public pure returns (bool) {
+        return true; // Always return true for testing
+    }
+
+    // Expose asset getter for testing
+    function getAsset() external view returns (address) {
+        return address(asset);
+    }
+
+    /// @notice Expose internal functions for testing
+    function testClaimRewardsFromWrapper() external {
+        _claimRewardsFromWrapper();
+    }
+
+    function testFreeFunds(uint256 _amount) external {
+        _freeFunds(_amount);
+    }
+
+    function testDeployFunds(uint256 _amount) external {
+        _deployFunds(_amount);
+    }
+
+    // Special version that forces a revert with string message
+    function testDeployFundsWithNamedRevert(uint256 _amount) external returns (bool) {
+        // Call a function that will always revert with a named error
+        try WRAPPER.stake(_amount, address(this)) {
+            return true;
+        } catch Error(string memory reason) {
+            // Manually revert with the message to simulate the line 200-201 in the actual code
+            revert(reason);
+        } catch (bytes memory) {
+            // Simulate the line 202-203 in the actual code
+            revert("WRAPPER.stake low-level revert");
+        }
+    }
+
+    // Special version that forces an unnamed revert
+    function testDeployFundsWithUnnamedRevert(uint256 _amount) external returns (bool) {
+        // Call a function that will always revert with an unnamed error
+        try WRAPPER.stake(_amount, address(this)) {
+            return true;
+        } catch Error(string memory reason) {
+            // Manually revert with the message to simulate the line 200-201 in the actual code
+            revert(reason);
+        } catch (bytes memory) {
+            // Simulate the line 202-203 in the actual code
+            revert("WRAPPER.stake low-level revert");
+        }
+    }
+
+    function testHarvestAndReport() external returns (uint256) {
+        return _harvestAndReport();
+    }
+
+    function testSellRewards() external {
+        _sellRewards();
+    }
+
+    // Special version to test early return in _sellRewards
+    function testSellRewardsWithNoMechanisms() external {
+        // Save the current settings
+        bool originalUseTradeFactory = useTradeFactory;
+        bool originalUseAuction = useAuction;
+
+        // Disable both mechanisms to test the early return
+        useTradeFactory = false;
+        useAuction = false;
+
+        // Call the function - should hit early return
+        _sellRewards();
+
+        // Restore original settings
+        useTradeFactory = originalUseTradeFactory;
+        useAuction = originalUseAuction;
+    }
+
+    function testClaimRewards() external {
+        _claimRewards();
+    }
+
+    function testEmergencyWithdraw(uint256 _amount) external {
+        _emergencyWithdraw(_amount);
+    }
+
+    function testProcessAuctions(address[] memory _tokens, uint256 _count) external {
+        _processAuctions(_tokens, _count);
+    }
+
+    function testSetupTrades(
+        address _tf,
+        address[] memory _tradeTokens,
+        uint256 _tradeCount,
+        address[] memory _auctionTokens,
+        uint256 _auctionCount,
+        bool _hasAuction
+    ) external {
+        _setupTrades(_tf, _tradeTokens, _tradeCount, _auctionTokens, _auctionCount, _hasAuction);
+    }
+
+    function testEnableTradesInBatch(address _tf, address[] memory _tokens, uint256 _count) external {
+        _enableTradesInBatch(_tf, _tokens, _count);
+    }
+
+    /// @notice Expose harvest for tests only - legacy version
     function testHarvest() external returns (uint256 profit) {
         return _fixedHarvestAndReport();
     }

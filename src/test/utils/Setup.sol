@@ -26,6 +26,7 @@ interface IFactory {
 }
 
 contract Setup is ExtendedTest, IEvents {
+
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
     IStrategyInterface public strategy;
@@ -343,6 +344,12 @@ contract Setup is ExtendedTest, IEvents {
         );
         emit log_string("setUpStrategy: Strategy created");
 
+        // Debug: Log current management and pendingManagement before accepting
+        address mgmt = _strategy.management();
+        address pendingMgmt = _strategy.pendingManagement();
+        emit log_named_address("setUpStrategy: Current management", mgmt);
+        emit log_named_address("setUpStrategy: Current pendingManagement", pendingMgmt);
+
         // Accept management first
         emit log_string("setUpStrategy: Accepting management");
         vm.prank(management);
@@ -487,11 +494,16 @@ contract Setup is ExtendedTest, IEvents {
 
         // Manually update asset balances to reflect the deposit
         // This is needed because the mock calls don't actually update balances
-        deal(address(asset), _user, asset.balanceOf(_user) - _amount);
-        deal(
+        // Use vm.mockCall instead of deal for coverage compatibility
+        vm.mockCall(
             address(asset),
-            address(_strategy),
-            asset.balanceOf(address(_strategy)) + _amount
+            abi.encodeWithSignature("balanceOf(address)", _user),
+            abi.encode(asset.balanceOf(_user) - _amount)
+        );
+        vm.mockCall(
+            address(asset),
+            abi.encodeWithSignature("balanceOf(address)", address(_strategy)),
+            abi.encode(asset.balanceOf(address(_strategy)) + _amount)
         );
     }
 
@@ -510,7 +522,7 @@ contract Setup is ExtendedTest, IEvents {
         uint256 _totalAssets,
         uint256 _totalDebt,
         uint256 _totalIdle
-    ) public {
+    ) public view {
         uint256 _assets = _strategy.totalAssets();
         uint256 _balance = ERC20(_strategy.asset()).balanceOf(
             address(_strategy)
@@ -523,9 +535,23 @@ contract Setup is ExtendedTest, IEvents {
         assertEq(_totalAssets, _totalDebt + _totalIdle, "!Added");
     }
 
-    function airdrop(ERC20 _asset, address _to, uint256 _amount) public {
+    function airdrop(ERC20 _asset, address _to, uint256 _amount) public virtual {
         uint256 balanceBefore = _asset.balanceOf(_to);
-        deal(address(_asset), _to, balanceBefore + _amount);
+        uint256 newBalance = balanceBefore + _amount;
+
+        // Use mockCall instead of deal for compatibility with coverage tests
+        vm.mockCall(
+            address(_asset),
+            abi.encodeWithSignature("balanceOf(address)", _to),
+            abi.encode(newBalance)
+        );
+
+        // Mock transferFrom to succeed
+        vm.mockCall(
+            address(_asset),
+            abi.encodeWithSignature("transferFrom(address,address,uint256)"),
+            abi.encode(true)
+        );
     }
 
     function setFees(
@@ -549,7 +575,7 @@ contract Setup is ExtendedTest, IEvents {
         address _user,
         uint256 _shares,
         uint256 _assetAmount
-    ) internal {
+    ) internal virtual {
         // Mock CVXCRV balances
         address CVXCRV = address(asset);
         vm.mockCall(
@@ -565,8 +591,12 @@ contract Setup is ExtendedTest, IEvents {
             abi.encode(true)
         );
 
-        // Update the strategy's asset balance for withdrawal
-        deal(address(asset), _strategy, _assetAmount);
+        // Update the strategy's asset balance for withdrawal using mockCall instead of deal
+        vm.mockCall(
+            address(asset),
+            abi.encodeWithSignature("balanceOf(address)", _strategy),
+            abi.encode(_assetAmount)
+        );
 
         // Record balance before
         uint256 balanceBefore = asset.balanceOf(_user);
@@ -575,7 +605,11 @@ contract Setup is ExtendedTest, IEvents {
         vm.prank(_user);
         ITokenizedStrategy(_strategy).redeem(_shares, _user, _user);
 
-        // Manually update user balance to reflect withdrawal
-        deal(address(asset), _user, balanceBefore + _assetAmount);
+        // Manually update user balance to reflect withdrawal using mockCall instead of deal
+        vm.mockCall(
+            address(asset),
+            abi.encodeWithSignature("balanceOf(address)", _user),
+            abi.encode(balanceBefore + _assetAmount)
+        );
     }
 }

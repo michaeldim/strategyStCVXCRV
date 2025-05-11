@@ -172,7 +172,9 @@ contract StCVXCRVStrategy is
     function availableWithdrawLimit(
         address /*_owner*/
     ) public view override returns (uint256) {
-        return IERC20(CVXCRV).balanceOf(address(this));
+        uint256 idleAssets = IERC20(CVXCRV).balanceOf(address(this));
+        uint256 stakedAssets = WRAPPER.balanceOf(address(this));
+        return idleAssets + stakedAssets;
     }
 
     /// @notice Gets max amount of asset that can be deposited
@@ -204,10 +206,17 @@ contract StCVXCRVStrategy is
 
     /// @dev Attempts to free '_amount' of asset (unstake cvxCRV)
     function _freeFunds(uint256 _amount) internal override {
-        try WRAPPER.withdraw(_amount) {
-            // Success
-        } catch {
-            // Continue if withdraw fails
+        uint256 wrapperBalance = WRAPPER.balanceOf(address(this));
+        if (_amount > wrapperBalance) {
+            _amount = wrapperBalance; // Limit to available amount
+        }
+
+        if (_amount > 0) {
+            try WRAPPER.withdraw(_amount) {
+                // Success
+            } catch {
+                // Continue if withdraw fails
+            }
         }
     }
 
@@ -234,21 +243,37 @@ contract StCVXCRVStrategy is
         }
 
         // Calculate total assets (liquid + staked)
-        _totalAssets =
-            asset.balanceOf(address(this)) +
-            WRAPPER.balanceOf(address(this));
+        uint256 idleAssets = asset.balanceOf(address(this));
+        uint256 stakedAssets = WRAPPER.balanceOf(address(this));
+        _totalAssets = idleAssets + stakedAssets;
+
+        // Return total assets
+        return _totalAssets;
     }
 
     /// @dev Emergency withdrawal if strategy is shutdown
     function _emergencyWithdraw(uint256 _amount) internal override {
-        uint256 available = IERC20(CVXCRV).balanceOf(address(this));
-        if (_amount > available) {
-            _amount = available;
-        }
-        try WRAPPER.withdraw(_amount) {
-            // Success
-        } catch {
-            // Continue if withdraw fails
+        // First, check idle assets
+        uint256 idleAssets = IERC20(CVXCRV).balanceOf(address(this));
+
+        // If requested amount exceeds idle assets, attempt to unstake required difference
+        if (_amount > idleAssets) {
+            uint256 toUnstake = _amount - idleAssets;
+            uint256 stakedAssets = WRAPPER.balanceOf(address(this));
+
+            // Limit to available staked amount
+            if (toUnstake > stakedAssets) {
+                toUnstake = stakedAssets;
+            }
+
+            // Only try withdrawing if there's something to withdraw
+            if (toUnstake > 0) {
+                try WRAPPER.withdraw(toUnstake) {
+                    // Success
+                } catch {
+                    // Continue if withdraw fails
+                }
+            }
         }
     }
 
@@ -444,11 +469,21 @@ contract StCVXCRVStrategy is
     }
 
     /// @notice Set the address of the auction contract
-    function setAuctionAddress(
-        address _newAuctionAddress
+    function setAuction(
+        address _auction
     ) external onlyManagement {
-        require(_newAuctionAddress != address(0), "Auction cannot be zero address");
-        auction = _newAuctionAddress;
+        require(_auction != address(0), "Auction cannot be zero address");
+        auction = _auction;
+    }
+
+    /// @notice Enable auction route for swapping a token to another
+    function enableAuctionRoute(address _from, address _to) external onlyManagement {
+        _enableAuction(_from, _to);
+    }
+
+    /// @notice Enable trade factory route for swapping a token to another
+    function enableTradeFactoryRoute(address _from, address _to) external onlyManagement {
+        _addToken(_from, _to);
     }
 
     /// @notice Toggle health check functionality
@@ -486,5 +521,19 @@ contract StCVXCRVStrategy is
     /// @notice Claim rewards (does not sell)
     function manualClaimRewards() external onlyManagement {
         _claimRewardsFromWrapper();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                     TEST FUNCTIONS (WILL BE REMOVED)
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test function to expose _deployFunds for testing
+    function trialDeployFunds(uint256 _amount) external {
+        _deployFunds(_amount);
+    }
+
+    /// @notice Test function to expose _sellRewards for testing
+    function trialSellRewards() external {
+        _sellRewards();
     }
 }
