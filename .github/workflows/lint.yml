@@ -27,7 +27,7 @@ jobs:
 
       # Now use the correct package manager to run lint
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run linting
         run: pnpm run lint

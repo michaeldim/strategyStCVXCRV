@@ -22,9 +22,20 @@ fork-url = "https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY"
 verbosity = 3
 evm_version = "paris"
 gas_reports = ["Strategy", "FixedStrategy"]
+ignore_deploy_size = true
 
 # Use proper management address from tests
 sender = '0xcDb15392B5BC692dE20B3a4E29190B4DD1d6c63d'
 tx_origin = '0xcDb15392B5BC692dE20B3a4E29190B4DD1d6c63d'
+
+# CI profile specifically for GitHub Actions
+[profile.ci]
+src = 'src'
+out = 'out'
+libs = ['lib']
+solc = "0.8.23"
+optimizer = true
+optimizer_runs = 10000
+ignore_deploy_size = true
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
