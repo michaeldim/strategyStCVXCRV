@@ -1,0 +1,15 @@
+# Ignore all files in lib directory (submodules)
+lib/
+node_modules/
+
+# Ignore build artifacts
+out/
+cache/
+
+# Ignore coverage reports
+coverage*/
+lcov.info
+
+# Ignore other common files
+.DS_Store
+*.log
