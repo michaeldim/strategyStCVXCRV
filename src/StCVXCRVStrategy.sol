@@ -16,12 +16,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
  * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseHealthCheck for safety,
  *      AuctionSwapper for auction-based reward sales, and TradeFactorySwapper for direct DEX reward sales.
  */
-contract StCVXCRVStrategy is
-    BaseHealthCheck,
-    AuctionSwapper,
-    TradeFactorySwapper,
-    ReentrancyGuard
-{
+contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwapper, ReentrancyGuard {
     using SafeERC20 for ERC20;
     using SafeERC20 for IERC20;
 
@@ -120,11 +115,7 @@ contract StCVXCRVStrategy is
     }
 
     /// @notice Returns current trade factory and tokens set up for trading
-    function tradeFactoryInfo()
-        external
-        view
-        returns (address _tradeFactory, address[] memory _tokens)
-    {
+    function tradeFactoryInfo() external view returns (address _tradeFactory, address[] memory _tokens) {
         _tradeFactory = tradeFactory();
         _tokens = super.rewardTokens();
     }
@@ -158,35 +149,24 @@ contract StCVXCRVStrategy is
     }
 
     /// @notice Get current health check configuration
-    function getHealthCheckConfig()
-        external
-        view
-        returns (bool _enabled, uint256 _profitLimit, uint256 _lossLimit)
-    {
+    function getHealthCheckConfig() external view returns (bool _enabled, uint256 _profitLimit, uint256 _lossLimit) {
         _enabled = doHealthCheck;
         _profitLimit = profitLimitRatio();
         _lossLimit = lossLimitRatio();
     }
 
     /// @notice Gets max amount of asset that can be withdrawn
-    function availableWithdrawLimit(
-        address /*_owner*/
-    ) public view override returns (uint256) {
+    function availableWithdrawLimit(address /*_owner*/) public view override returns (uint256) {
         uint256 idleAssets = IERC20(CVXCRV).balanceOf(address(this));
         uint256 stakedAssets = WRAPPER.balanceOf(address(this));
         return idleAssets + stakedAssets;
     }
 
     /// @notice Gets max amount of asset that can be deposited
-    function availableDepositLimit(
-        address /*_owner*/
-    ) public view override returns (uint256) {
+    function availableDepositLimit(address /*_owner*/) public view override returns (uint256) {
         if (TokenizedStrategy.isShutdown()) return 0;
         uint256 currentTotalAssets = TokenizedStrategy.totalAssets();
-        return
-            currentTotalAssets >= depositLimit
-                ? 0
-                : depositLimit - currentTotalAssets;
+        return currentTotalAssets >= depositLimit ? 0 : depositLimit - currentTotalAssets;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -221,12 +201,7 @@ contract StCVXCRVStrategy is
     }
 
     /// @dev Core harvest function. Claims rewards, sells them for asset, and reinvests
-    function _harvestAndReport()
-        internal
-        virtual
-        override
-        returns (uint256 _totalAssets)
-    {
+    function _harvestAndReport() internal virtual override returns (uint256 _totalAssets) {
         // Only claim rewards if not shutdown
         if (!TokenizedStrategy.isShutdown()) {
             _claimRewardsFromWrapper();
@@ -400,7 +375,6 @@ contract StCVXCRVStrategy is
         }
     }
 
-
     // _kickAuction is deprecated and removed as it is never used.
 
     /*//////////////////////////////////////////////////////////////
@@ -429,22 +403,13 @@ contract StCVXCRVStrategy is
     }
 
     /// @notice Set minimum amount for a token to be considered for swapping
-    function setMinAmountToSell(
-        address _token,
-        uint256 _minAmount
-    ) external onlyManagement {
+    function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
         minAmountToSell[_token] = _minAmount;
     }
 
     /// @notice Batch set minimum amounts for multiple tokens
-    function setMinAmountsToSell(
-        address[] calldata _tokens,
-        uint256[] calldata _minAmounts
-    ) external onlyManagement {
-        require(
-            _tokens.length == _minAmounts.length,
-            "Arrays must be same length"
-        );
+    function setMinAmountsToSell(address[] calldata _tokens, uint256[] calldata _minAmounts) external onlyManagement {
+        require(_tokens.length == _minAmounts.length, "Arrays must be same length");
         for (uint256 i = 0; i < _tokens.length; i++) {
             minAmountToSell[_tokens[i]] = _minAmounts[i];
         }
@@ -452,26 +417,18 @@ contract StCVXCRVStrategy is
 
     /// @notice Enable/disable TradeFactory for swapping rewards
     function setUseTradeFactory(bool _useTradeFactory) external onlyManagement {
-        require(
-            !_useTradeFactory || tradeFactory() != address(0),
-            "TradeFactory not set"
-        );
+        require(!_useTradeFactory || tradeFactory() != address(0), "TradeFactory not set");
         useTradeFactory = _useTradeFactory;
     }
 
     /// @notice Enable/disable Auctions for swapping rewards
     function setUseAuction(bool _useAuction) external onlyManagement {
-        require(
-            !_useAuction || auction != address(0),
-            "Auction not set"
-        );
+        require(!_useAuction || auction != address(0), "Auction not set");
         useAuction = _useAuction;
     }
 
     /// @notice Set the address of the auction contract
-    function setAuction(
-        address _auction
-    ) external onlyManagement {
+    function setAuction(address _auction) external onlyManagement {
         require(_auction != address(0), "Auction cannot be zero address");
         auction = _auction;
     }
@@ -492,16 +449,12 @@ contract StCVXCRVStrategy is
     }
 
     /// @notice Set max profit that can be reported (basis points)
-    function setStrategyProfitLimitRatio(
-        uint256 _profitLimitRatio
-    ) external onlyManagement {
+    function setStrategyProfitLimitRatio(uint256 _profitLimitRatio) external onlyManagement {
         _setProfitLimitRatio(_profitLimitRatio);
     }
 
     /// @notice Set max loss that can be reported (basis points)
-    function setStrategyLossLimitRatio(
-        uint256 _lossLimitRatio
-    ) external onlyManagement {
+    function setStrategyLossLimitRatio(uint256 _lossLimitRatio) external onlyManagement {
         _setLossLimitRatio(_lossLimitRatio);
     }
 

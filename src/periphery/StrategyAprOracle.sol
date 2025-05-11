@@ -12,24 +12,12 @@ interface ICvxCrvUtilities {
     function mainRewardRates()
         external
         view
-        returns (
-            address[] memory tokens,
-            uint256[] memory rates,
-            uint256[] memory groups
-        );
+        returns (address[] memory tokens, uint256[] memory rates, uint256[] memory groups);
     function extraRewardRates()
         external
         view
-        returns (
-            address[] memory tokens,
-            uint256[] memory rates,
-            uint256[] memory groups
-        );
-    function apr(
-        uint256 rate,
-        uint256 rewardPrice,
-        uint256 depositPrice
-    ) external pure returns (uint256);
+        returns (address[] memory tokens, uint256[] memory rates, uint256[] memory groups);
+    function apr(uint256 rate, uint256 rewardPrice, uint256 depositPrice) external pure returns (uint256);
 }
 
 /**
@@ -65,22 +53,17 @@ contract StrategyAprOracle is AprOracleBase {
     }
     // Constants for rewards contracts and tokens
     address public constant CVXCRV = 0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7;
-    address public constant THREE_CRV =
-        0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490; // 3CRV token address
+    address public constant THREE_CRV = 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490; // 3CRV token address
     // Address of the token representing the staked asset in the strategy
-    address public constant STAKED_ASSET_TOKEN =
-        0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434; // Matches test STAKED_CVXCRV
+    address public constant STAKED_ASSET_TOKEN = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434; // Matches test STAKED_CVXCRV
 
     // Price oracle interface
     IPriceOracle public priceOracle;
 
     /// @notice CvxCrvUtilities contract for boosted & grouped APR
-    ICvxCrvUtilities public cvxCrvUtilities =
-        ICvxCrvUtilities(0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673);
+    ICvxCrvUtilities public cvxCrvUtilities = ICvxCrvUtilities(0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673);
 
-    constructor(
-        address _priceOracle
-    ) AprOracleBase("cvxCRV Strategy APR Oracle", msg.sender) {
+    constructor(address _priceOracle) AprOracleBase("cvxCRV Strategy APR Oracle", msg.sender) {
         if (_priceOracle != address(0)) {
             priceOracle = IPriceOracle(_priceOracle);
         }
@@ -121,12 +104,8 @@ contract StrategyAprOracle is AprOracleBase {
      * @param _delta The difference in debt.
      * @return . The expected apr for the strategy represented as 1e18.
      */
-    function aprAfterDebtChange(
-        address _strategy,
-        int256 _delta
-    ) external view override returns (uint256) {
-        uint256 currentStakedBalance = IERC20Minimal(STAKED_ASSET_TOKEN)
-            .balanceOf(_strategy);
+    function aprAfterDebtChange(address _strategy, int256 _delta) external view override returns (uint256) {
+        uint256 currentStakedBalance = IERC20Minimal(STAKED_ASSET_TOKEN).balanceOf(_strategy);
         uint256 futureStakedBalance;
 
         if (_delta < 0) {
@@ -147,28 +126,10 @@ contract StrategyAprOracle is AprOracleBase {
         // If utilities is set, use its boosted & grouped APR calculation
         if (address(cvxCrvUtilities) != address(0)) {
             uint256 depositPrice = getCvxCRVPrice();
-            (
-                address[] memory toks0,
-                uint256[] memory r0,
-                uint256[] memory g0
-            ) = cvxCrvUtilities.mainRewardRates();
-            (
-                address[] memory toks1,
-                uint256[] memory r1,
-                uint256[] memory g1
-            ) = cvxCrvUtilities.extraRewardRates();
-            (uint256 group0a, uint256 group1a) = _sumAprGroups(
-                toks0,
-                r0,
-                g0,
-                depositPrice
-            );
-            (uint256 group0b, uint256 group1b) = _sumAprGroups(
-                toks1,
-                r1,
-                g1,
-                depositPrice
-            );
+            (address[] memory toks0, uint256[] memory r0, uint256[] memory g0) = cvxCrvUtilities.mainRewardRates();
+            (address[] memory toks1, uint256[] memory r1, uint256[] memory g1) = cvxCrvUtilities.extraRewardRates();
+            (uint256 group0a, uint256 group1a) = _sumAprGroups(toks0, r0, g0, depositPrice);
+            (uint256 group0b, uint256 group1b) = _sumAprGroups(toks1, r1, g1, depositPrice);
             uint256 group0 = group0a + group0b;
             uint256 group1 = group1a + group1b;
             return group0 > group1 ? group0 : group1;

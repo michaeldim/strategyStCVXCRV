@@ -13,6 +13,18 @@
       "not-rely-on-time": "off",
       "private-vars-leading-underscore": "off",
       "reason-string": ["warn", { "maxLength": 64 }],
-      "no-console": "off"
+      "no-console": "off",
+      "no-empty-blocks": "off",
+      "func-name-mixedcase": "off",
+      "var-name-mixedcase": "off",
+      "immutable-vars-naming": "off",
+      "state-visibility": "off",
+      "custom-errors": "off",
+      "no-unused-import": "off",
+      "one-contract-per-file": "off",
+      "explicit-types": "off",
+      "no-unused-vars": "off",
+      "no-global-import": "off",
+      "max-states-count": "off"
     }
   }

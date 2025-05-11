@@ -18,12 +18,7 @@ contract StrategyFactory is ReentrancyGuard {
     /// @notice Track the deployments. asset => pool => strategy
     mapping(address => address) public deployments;
 
-    constructor(
-        address _management,
-        address _performanceFeeRecipient,
-        address _keeper,
-        address _emergencyAdmin
-    ) {
+    constructor(address _management, address _performanceFeeRecipient, address _keeper, address _emergencyAdmin) {
         require(_management != address(0), "Management cannot be zero address");
         require(_performanceFeeRecipient != address(0), "Fee recipient cannot be zero address");
         require(_keeper != address(0), "Keeper cannot be zero address");

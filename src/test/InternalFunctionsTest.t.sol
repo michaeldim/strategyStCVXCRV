@@ -46,10 +46,10 @@ contract InternalFunctionsTest is Test {
             address(cvxCrv), // asset
             "Test Strategy",
             address(cvxCrv), // CVXCRV
-            address(crv),    // CRV
-            address(cvx),    // CVX
+            address(crv), // CRV
+            address(cvx), // CVX
             address(crvUsd), // CRVUSD
-            address(this),   // wrapper - we'll mock this using the test contract
+            address(this), // wrapper - we'll mock this using the test contract
             address(mockAuction),
             address(mockTradeFactory)
         );
@@ -60,17 +60,9 @@ contract InternalFunctionsTest is Test {
         // that always returns true, so we don't need to manipulate storage or mock calls
 
         // Mock TokenizedStrategy functions
-        vm.mockCall(
-            address(strategy),
-            abi.encodeWithSignature("isShutdown()"),
-            abi.encode(false)
-        );
+        vm.mockCall(address(strategy), abi.encodeWithSignature("isShutdown()"), abi.encode(false));
 
-        vm.mockCall(
-            address(strategy),
-            abi.encodeWithSignature("totalAssets()"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(address(strategy), abi.encodeWithSignature("totalAssets()"), abi.encode(uint256(0)));
 
         // Enable keeper functionality for tests
         strategy.setMockIsKeeper(true);
@@ -145,8 +137,11 @@ contract InternalFunctionsTest is Test {
         cvxCrv.mint(address(strategy), 200 * 1e18);
 
         // Verify that funds were freed
-        assertGt(cvxCrv.balanceOf(address(strategy)), initialBalance,
-            "Should have increased cvxCRV balance by freeing funds");
+        assertGt(
+            cvxCrv.balanceOf(address(strategy)),
+            initialBalance,
+            "Should have increased cvxCRV balance by freeing funds"
+        );
     }
 
     /// @notice Test the internal _freeFunds function with amount exceeding staked balance
@@ -192,7 +187,7 @@ contract InternalFunctionsTest is Test {
         // Should free funds from wrapper
         assertEq(
             cvxCrv.balanceOf(address(strategy)),
-            initialBalance + 1000 * 1e18,  // 500 idle + 1000 freed
+            initialBalance + 1000 * 1e18, // 500 idle + 1000 freed
             "Should have withdrawn all possible assets in emergency"
         );
     }
@@ -202,9 +197,9 @@ contract InternalFunctionsTest is Test {
         // Mock a lower balanceOf return value just for this test to hit the edge case
         // This will override the default 1000e18 value temporarily
         vm.mockCall(
-            address(this),  // this test contract acts as the wrapper
+            address(this), // this test contract acts as the wrapper
             abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(800 * 1e18)  // Only 800 tokens staked instead of 1000
+            abi.encode(800 * 1e18) // Only 800 tokens staked instead of 1000
         );
 
         // First set the strategy as shutdown
@@ -225,7 +220,7 @@ contract InternalFunctionsTest is Test {
         // Should free only the available funds (all staked assets)
         assertEq(
             cvxCrv.balanceOf(address(strategy)),
-            initialBalance + 800 * 1e18,  // 500 idle + 800 freed (max available)
+            initialBalance + 800 * 1e18, // 500 idle + 800 freed (max available)
             "Should have limited withdrawal to available staked amount"
         );
     }
@@ -249,21 +244,21 @@ contract InternalFunctionsTest is Test {
         // This is a mock verification that would depend on your mock implementation
         assertTrue(mockTradeFactory.enableCalled(), "Trade factory enable should have been called");
     }
-    
+
     /// @notice Test the early return in _sellRewards when no mechanisms are available
     function test_sellRewards_noMechanisms() public {
         // Configure to disable both selling mechanisms
         strategy.setUseAuction(false);
         strategy.setUseTradeFactory(false);
-        
+
         // Give strategy some reward tokens
         crv.mint(address(strategy), 500 * 1e18);
         cvx.mint(address(strategy), 500 * 1e18);
         crvUsd.mint(address(strategy), 500 * 1e18);
-        
+
         // This should hit the early return in _sellRewards
         strategy.testSellRewardsWithNoMechanisms();
-        
+
         // Since it should return early, we should see that the tokens remain
         // (no trading attempted)
         assertEq(crv.balanceOf(address(strategy)), 500 * 1e18, "CRV balance should remain unchanged");

@@ -17,32 +17,16 @@ contract TestHelper is Setup {
      * @param amount The balance amount to set
      */
     function mockDeal(address token, address account, uint256 amount) internal {
-        vm.mockCall(
-            token,
-            abi.encodeWithSignature("balanceOf(address)", account),
-            abi.encode(amount)
-        );
+        vm.mockCall(token, abi.encodeWithSignature("balanceOf(address)", account), abi.encode(amount));
 
         // Also mock the transferFrom function to allow transfers
-        vm.mockCall(
-            token,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(token, abi.encodeWithSignature("transferFrom(address,address,uint256)"), abi.encode(true));
 
         // Also mock maxWithdraw and maxRedeem for ERC4626 compatibility
         if (token == address(strategy)) {
-            vm.mockCall(
-                token,
-                abi.encodeWithSignature("maxWithdraw(address)", account),
-                abi.encode(amount)
-            );
+            vm.mockCall(token, abi.encodeWithSignature("maxWithdraw(address)", account), abi.encode(amount));
 
-            vm.mockCall(
-                token,
-                abi.encodeWithSignature("maxRedeem(address)", account),
-                abi.encode(amount)
-            );
+            vm.mockCall(token, abi.encodeWithSignature("maxRedeem(address)", account), abi.encode(amount));
         }
     }
 
@@ -55,11 +39,7 @@ contract TestHelper is Setup {
      */
     function mockTokenBalance(address token, address account, uint256 newBalance) internal {
         // Mock the balanceOf function to return the new balance
-        vm.mockCall(
-            token,
-            abi.encodeWithSignature("balanceOf(address)", account),
-            abi.encode(newBalance)
-        );
+        vm.mockCall(token, abi.encodeWithSignature("balanceOf(address)", account), abi.encode(newBalance));
     }
 
     /**
@@ -80,11 +60,7 @@ contract TestHelper is Setup {
      * @param weight The weight value to mock a successful response for
      */
     function mockSetRewardWeight(address wrapper, uint256 weight) internal {
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("setRewardWeight(uint256)", weight),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("setRewardWeight(uint256)", weight), abi.encode());
     }
 
     /**
@@ -96,18 +72,10 @@ contract TestHelper is Setup {
      */
     function mockWrapperWithdraw(address wrapper, uint256 amount, uint256 newBalance) internal {
         // Mock the withdraw function
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("withdraw(uint256)", amount),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("withdraw(uint256)", amount), abi.encode());
 
         // Update the mock balance after withdrawal
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("balanceOf(address)", address(strategy)),
-            abi.encode(newBalance)
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("balanceOf(address)", address(strategy)), abi.encode(newBalance));
     }
 
     /**
@@ -118,11 +86,7 @@ contract TestHelper is Setup {
     function mockRewardProcess(uint256 assetAmount) internal {
         // Mock the getReward call
         address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("getReward(address)"),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("getReward(address)"), abi.encode());
 
         // Mock the balanceOf for asset (cvxCRV) after rewards are processed
         vm.mockCall(
@@ -147,50 +111,22 @@ contract TestHelper is Setup {
     ) internal override {
         // Mock CVXCRV balances
         address CVXCRV = address(asset);
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(_assetAmount)
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(_assetAmount));
 
         // Mock asset transfer
-        vm.mockCall(
-            address(asset),
-            abi.encodeWithSignature("transfer(address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(address(asset), abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
         // Update the strategy's asset balance for withdrawal using mockCall
-        vm.mockCall(
-            address(asset),
-            abi.encodeWithSignature("balanceOf(address)", _strategy),
-            abi.encode(_assetAmount)
-        );
+        vm.mockCall(address(asset), abi.encodeWithSignature("balanceOf(address)", _strategy), abi.encode(_assetAmount));
 
         // Mock ERC4626 functions for successful withdrawal
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSignature("maxRedeem(address)", _user),
-            abi.encode(_shares)
-        );
+        vm.mockCall(_strategy, abi.encodeWithSignature("maxRedeem(address)", _user), abi.encode(_shares));
 
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSignature("maxWithdraw(address)", _user),
-            abi.encode(_assetAmount)
-        );
+        vm.mockCall(_strategy, abi.encodeWithSignature("maxWithdraw(address)", _user), abi.encode(_assetAmount));
 
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSignature("previewRedeem(uint256)", _shares),
-            abi.encode(_assetAmount)
-        );
+        vm.mockCall(_strategy, abi.encodeWithSignature("previewRedeem(uint256)", _shares), abi.encode(_assetAmount));
 
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSignature("balanceOf(address)", _user),
-            abi.encode(_shares)
-        );
+        vm.mockCall(_strategy, abi.encodeWithSignature("balanceOf(address)", _user), abi.encode(_shares));
 
         // Record balance before
         uint256 balanceBefore = asset.balanceOf(_user);
@@ -212,10 +148,6 @@ contract TestHelper is Setup {
      * Used to make profit calculation work correctly in tests
      */
     function mockPreviousTotalAssets(address _strategy, uint256 _value) internal {
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSelector(bytes4(keccak256("previousTotalAssets()"))),
-            abi.encode(_value)
-        );
+        vm.mockCall(_strategy, abi.encodeWithSelector(bytes4(keccak256("previousTotalAssets()"))), abi.encode(_value));
     }
 }
