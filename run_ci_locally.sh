@@ -88,6 +88,10 @@ echo "========================================"
 echo -e "${YELLOW}Enabling Corepack for proper package manager handling...${NC}"
 corepack enable
 
+# Install dependencies
+echo -e "${YELLOW}Installing dependencies...${NC}"
+pnpm install --no-frozen-lockfile
+
 echo -e "${YELLOW}1. Running Prettier format check (excluding submodules)...${NC}"
 pnpm format:check > /tmp/format_check.log 2>&1 &
 format_pid=$!
@@ -396,8 +400,8 @@ if [ "$FORMAT_FAILED" = true ] || [ "$LINT_FAILED" = true ] || [ "$COMMIT_FAILED
 
   echo ""
   echo -e "${YELLOW}Recommendations:${NC}"
-  [ "$FORMAT_FAILED" = true ] && echo "  - Run 'yarn format' to fix formatting issues"
-  [ "$LINT_FAILED" = true ] && echo "  - Run 'yarn lint:fix' to fix linting issues"
+  [ "$FORMAT_FAILED" = true ] && echo "  - Run 'pnpm format' to fix formatting issues"
+  [ "$LINT_FAILED" = true ] && echo "  - Run 'pnpm lint:fix' to fix linting issues"
   [ "$COMMIT_FAILED" = true ] && echo "  - Format your commit messages as: 'type(scope): message'"
   [ "$COMMIT_FAILED" = true ] && echo "    Valid types: feat, fix, docs, style, refactor, perf, test, ci, chore, revert"
   [ "$SLITHER_FAILED" = true ] && echo "  - Check full Slither output in /tmp/slither_check.log"

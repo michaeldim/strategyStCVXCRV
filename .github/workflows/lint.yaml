@@ -21,28 +21,32 @@ jobs:
         with:
           node-version: 18
 
-      - name: Set yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+      # Enable Corepack to use the packageManager specified in package.json
+      - name: Enable Corepack
+        run: corepack enable
 
-      - name: Restore yarn cache
+      - name: Set pnpm cache directory path
+        id: pnpm-cache-dir-path
+        run: echo "dir=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm cache
         uses: actions/cache@v3
-        id: yarn-cache
+        id: pnpm-cache
         with:
           path: |
-            ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+            ${{ steps.pnpm-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-pnpm-
       - name: Install node.js dependencies
-        run: yarn --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run formater check on *.sol and *.json
-        run: yarn format:check
+        run: pnpm format:check
 
       - name: run linter check on *.sol file
-        run: yarn lint
+        run: pnpm lint
 
   commits:
     runs-on: ubuntu-latest

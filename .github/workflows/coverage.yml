@@ -30,6 +30,12 @@ jobs:
         with:
           version: nightly
           
+      # Configure Foundry to ignore deploy size
+      - name: Configure Foundry
+        run: |
+          forge config --ignore-deploy-size true
+          forge config
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -38,6 +44,10 @@ jobs:
       # Enable Corepack to use the packageManager specified in package.json
       - name: Enable Corepack
         run: corepack enable
+        
+      # Install dependencies if needed
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install lcov
         run: sudo apt-get -y install lcov
