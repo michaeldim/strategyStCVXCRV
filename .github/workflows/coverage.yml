@@ -11,6 +11,7 @@ env:
   FOUNDRY_PROFILE: ci
   ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
   FORK_URL: ${{ secrets.ETH_RPC_URL }}
+  FOUNDRY_IGNORE_DEPLOY_SIZE: true
 
 jobs:
   coverage:
@@ -28,6 +29,15 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      # Enable Corepack to use the packageManager specified in package.json
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install lcov
         run: sudo apt-get -y install lcov

@@ -84,8 +84,12 @@ echo -e "${BOLD}${BLUE}=== Yearn Strategy CI Checks ===${NC}"
 echo -e "${YELLOW}Running GitHub Actions checks locally${NC}"
 echo "========================================"
 
+# Enable Corepack for proper package manager handling
+echo -e "${YELLOW}Enabling Corepack for proper package manager handling...${NC}"
+corepack enable
+
 echo -e "${YELLOW}1. Running Prettier format check (excluding submodules)...${NC}"
-yarn format:check > /tmp/format_check.log 2>&1 &
+pnpm format:check > /tmp/format_check.log 2>&1 &
 format_pid=$!
 spinner $format_pid
 wait $format_pid
@@ -99,7 +103,7 @@ else
 fi
 
 echo -e "${YELLOW}2. Running Solhint linter check (excluding submodules)...${NC}"
-yarn lint > /tmp/lint_check.log 2>&1 &
+pnpm lint > /tmp/lint_check.log 2>&1 &
 lint_pid=$!
 spinner $lint_pid
 wait $lint_pid
