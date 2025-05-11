@@ -67,11 +67,24 @@ spinner() {
   printf "    \b\b\b\b"
 }
 
+# Warning about submodule changes
+check_submodule_changes() {
+  # Check if any submodules have changes
+  if git submodule foreach git diff --quiet 2>/dev/null; then
+    echo -e "${GREEN}✓ No changes detected in submodules${NC}"
+  else
+    echo -e "${YELLOW}⚠ WARNING: Changes detected in submodules!${NC}"
+    echo -e "${YELLOW}Submodule changes are not typically committed unless deliberately updating them.${NC}"
+    echo -e "${YELLOW}To discard submodule changes: git submodule foreach git reset --hard${NC}"
+    echo -e "${YELLOW}To reinitialize submodules:  git submodule update --init --recursive${NC}"
+  fi
+}
+
 echo -e "${BOLD}${BLUE}=== Yearn Strategy CI Checks ===${NC}"
 echo -e "${YELLOW}Running GitHub Actions checks locally${NC}"
 echo "========================================"
 
-echo -e "${YELLOW}1. Running Prettier format check...${NC}"
+echo -e "${YELLOW}1. Running Prettier format check (excluding submodules)...${NC}"
 yarn format:check > /tmp/format_check.log 2>&1 &
 format_pid=$!
 spinner $format_pid
@@ -82,9 +95,10 @@ if [ $format_exit -eq 0 ]; then
 else
   FORMAT_FAILED=true
   echo -e "${RED}✗ Format check failed${NC}"
+  echo -e "${YELLOW}Note: Submodules (lib/ directory) are excluded from formatting${NC}"
 fi
 
-echo -e "${YELLOW}2. Running Solhint linter check...${NC}"
+echo -e "${YELLOW}2. Running Solhint linter check (excluding submodules)...${NC}"
 yarn lint > /tmp/lint_check.log 2>&1 &
 lint_pid=$!
 spinner $lint_pid
@@ -95,6 +109,7 @@ if [ $lint_exit -eq 0 ]; then
 else
   LINT_FAILED=true
   echo -e "${RED}✗ Linter check failed${NC}"
+  echo -e "${YELLOW}Note: Submodules (lib/ directory) are excluded from linting${NC}"
 fi
 
 echo -e "${YELLOW}3. Testing commit message format...${NC}"
@@ -192,6 +207,10 @@ fi  # First fix the commit message issue by modifying our HEAD commit
     else
       echo -e "${YELLOW}! You have $UNCOMMITTED uncommitted changes${NC}"
     fi
+
+    # Check for submodule changes
+    echo -e "${YELLOW}Checking for changes in submodules...${NC}"
+    check_submodule_changes
   fi
 
 # Run tests
@@ -385,6 +404,13 @@ if [ "$FORMAT_FAILED" = true ] || [ "$LINT_FAILED" = true ] || [ "$COMMIT_FAILED
   [ "$TEST_FAILED" = true ] && echo "  - Check full test output in /tmp/test_output.log"
   [ "$COVERAGE_FAILED" = true ] && echo "  - Check coverage output in /tmp/coverage_output.log"
   [ "$TEST_SKIPPED" = true ] || [ "$COVERAGE_SKIPPED" = true ] && echo "  - Set FORK_URL environment variable to run tests and coverage"
+
+  # Check for submodule changes and provide recommendation
+  if ! git submodule foreach git diff --quiet 2>/dev/null; then
+    echo "  - Submodule changes detected. If unintentional, run:"
+    echo "    git submodule foreach git reset --hard"
+    echo "    git submodule update --init --recursive"
+  fi
 
   # Only exit with error if there are still failures after processing flags
   if [ "$FORMAT_FAILED" = true ] || [ "$LINT_FAILED" = true ] || [ "$COMMIT_FAILED" = true ] || [ "$SLITHER_FAILED" = true ] || [ "$BUILD_FAILED" = true ] || [ "$TEST_FAILED" = true ] || [ "$COVERAGE_FAILED" = true ]; then
