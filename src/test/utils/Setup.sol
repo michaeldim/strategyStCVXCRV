@@ -26,7 +26,6 @@ interface IFactory {
 }
 
 contract Setup is ExtendedTest, IEvents {
-
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
     IStrategyInterface public strategy;
@@ -71,61 +70,32 @@ contract Setup is ExtendedTest, IEvents {
         emit log("Setup: Step 6 - Deploying MockAuction");
         address cvxCrvAddr = address(mockCvxCrv); // Define cvxCrvAddr before use
         mockAuction = new MockAuction(cvxCrvAddr); // Pass cvxCrvAddr to constructor
-        emit log_named_address(
-            "Setup: Step 7 - MockAuction deployed at",
-            address(mockAuction)
-        );
+        emit log_named_address("Setup: Step 7 - MockAuction deployed at", address(mockAuction));
 
         // Mock CvxCrvStakingWrapper calls
         address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
 
         // Mock wrapper.balanceOf to return 0 for any address
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
         // Mock wrapper.stake to always succeed
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("stake(uint256,address)"),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("stake(uint256,address)"), abi.encode());
 
         // Mock wrapper.getReward to always succeed
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("getReward(address)"),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("getReward(address)"), abi.encode());
 
         // Mock wrapper.withdraw to always succeed
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("withdraw(uint256)"),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("withdraw(uint256)"), abi.encode());
 
         // Mock wrapper.isShutdown to return false
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("isShutdown()"),
-            abi.encode(false)
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("isShutdown()"), abi.encode(false));
 
         // Mock AuctionFactory.createNewAuction to return the mock auction address
         emit log("Setup: Step 12 - Before auctionFactory mock");
         address auctionFactory = 0xCfA510188884F199fcC6e750764FAAbE6e56ec40;
         vm.mockCall(
             auctionFactory,
-            abi.encodeWithSelector(
-                bytes4(
-                    keccak256(
-                        "createNewAuction(address,address,address,uint256,uint256)"
-                    )
-                )
-            ),
+            abi.encodeWithSelector(bytes4(keccak256("createNewAuction(address,address,address,uint256,uint256)"))),
             abi.encode(address(mockAuction)) // Use the deployed mockAuction address
         );
         emit log("Setup: Step 13 - After auctionFactory mock");
@@ -137,79 +107,31 @@ contract Setup is ExtendedTest, IEvents {
         address CVXCRV = address(asset);
 
         // Mock balanceOf for all reward tokens to return 0
-        vm.mockCall(
-            CRV,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(CRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
-        vm.mockCall(
-            CVX,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(CVX, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
-        vm.mockCall(
-            CRVUSD,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(CRVUSD, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
         // Mock transfer to always succeed
-        vm.mockCall(
-            CRV,
-            abi.encodeWithSignature("transfer(address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(CRV, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
-        vm.mockCall(
-            CVX,
-            abi.encodeWithSignature("transfer(address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(CVX, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
-        vm.mockCall(
-            CRVUSD,
-            abi.encodeWithSignature("transfer(address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(CRVUSD, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("transfer(address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
         // Mock safeTransfer to always succeed
-        vm.mockCall(
-            CRV,
-            abi.encodeWithSignature("safeTransfer(address,uint256)"),
-            abi.encode()
-        );
+        vm.mockCall(CRV, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
 
-        vm.mockCall(
-            CVX,
-            abi.encodeWithSignature("safeTransfer(address,uint256)"),
-            abi.encode()
-        );
+        vm.mockCall(CVX, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
 
-        vm.mockCall(
-            CRVUSD,
-            abi.encodeWithSignature("safeTransfer(address,uint256)"),
-            abi.encode()
-        );
+        vm.mockCall(CRVUSD, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
 
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("safeTransfer(address,uint256)"),
-            abi.encode()
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
 
         emit log("Setup: Step 14 - Skipping _setTokenAddrs");
         // _setTokenAddrs(); // Removed as token addresses are handled directly
@@ -218,36 +140,20 @@ contract Setup is ExtendedTest, IEvents {
 
         // Mock CVXCRV.decimals() to return 18 (prevents revert in Foundry tests)
         emit log("Setup: Step 18 - Before decimals mock");
-        vm.mockCall(
-            tokenAddrs["CVXCRV"],
-            abi.encodeWithSignature("decimals()"),
-            abi.encode(uint8(18))
-        );
+        vm.mockCall(tokenAddrs["CVXCRV"], abi.encodeWithSignature("decimals()"), abi.encode(uint8(18)));
         emit log("Setup: Step 19 - After decimals mock");
 
         // Mock CVXCRV.allowance() for any arguments to always return 0 (prevents SafeERC20 revert in tests)
         emit log("Setup: Step 20 - Before allowance mock");
-        vm.mockCall(
-            tokenAddrs["CVXCRV"],
-            abi.encodeWithSelector(IERC20.allowance.selector),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(tokenAddrs["CVXCRV"], abi.encodeWithSelector(IERC20.allowance.selector), abi.encode(uint256(0)));
         emit log("Setup: Step 21 - After allowance mock");
 
         // Also mock allowance for address(asset) in case it's different from tokenAddrs["CVXCRV"]
-        vm.mockCall(
-            address(asset),
-            abi.encodeWithSelector(IERC20.allowance.selector),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(address(asset), abi.encodeWithSelector(IERC20.allowance.selector), abi.encode(uint256(0)));
 
         // Mock CVXCRV.approve() for any arguments to always return true (prevents SafeERC20 revert in tests)
         emit log("Setup: Step 22 - Before approve mock");
-        vm.mockCall(
-            tokenAddrs["CVXCRV"],
-            abi.encodeWithSelector(IERC20.approve.selector),
-            abi.encode(true)
-        );
+        vm.mockCall(tokenAddrs["CVXCRV"], abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
         emit log("Setup: Step 23 - After approve mock");
 
         // Set decimals
@@ -256,12 +162,7 @@ contract Setup is ExtendedTest, IEvents {
         emit log("Setup: Step 25 - After decimals assignment");
 
         emit log("Setup: Step 26 - Before strategyFactory");
-        strategyFactory = new StrategyFactory(
-            management,
-            performanceFeeRecipient,
-            keeper,
-            emergencyAdmin
-        );
+        strategyFactory = new StrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin);
         emit log("Setup: Step 27 - After strategyFactory");
 
         // Deploy strategy and set variables
@@ -271,11 +172,7 @@ contract Setup is ExtendedTest, IEvents {
 
         emit log("Setup: Step 30 - Before FACTORY assignment");
         // Defensive mock for FACTORY() if needed
-        vm.mockCall(
-            address(strategy),
-            abi.encodeWithSignature("FACTORY()"),
-            abi.encode(address(strategyFactory))
-        );
+        vm.mockCall(address(strategy), abi.encodeWithSignature("FACTORY()"), abi.encode(address(strategyFactory)));
         factory = strategy.FACTORY();
         emit log("Setup: Step 31 - After FACTORY assignment");
 
@@ -300,20 +197,14 @@ contract Setup is ExtendedTest, IEvents {
         // Patch: Mock factory.set_protocol_fee_recipient(address) to always succeed
         vm.mockCall(
             address(strategyFactory),
-            abi.encodeWithSelector(
-                IFactory.set_protocol_fee_recipient.selector,
-                management
-            ),
+            abi.encodeWithSelector(IFactory.set_protocol_fee_recipient.selector, management),
             ""
         );
 
         // Patch: Mock factory.set_protocol_fee_bps(uint16) to always succeed
         vm.mockCall(
             address(strategyFactory),
-            abi.encodeWithSelector(
-                IFactory.set_protocol_fee_bps.selector,
-                uint16(0)
-            ),
+            abi.encodeWithSelector(IFactory.set_protocol_fee_bps.selector, uint16(0)),
             ""
         );
     }
@@ -378,9 +269,7 @@ contract Setup is ExtendedTest, IEvents {
         emit log_string("setUpStrategy: Profit max unlock time set");
 
         // Set up mock auction and trade factory
-        emit log_string(
-            "setUpStrategy: Setting up mock auction (using the one from Setup.sol)"
-        );
+        emit log_string("setUpStrategy: Setting up mock auction (using the one from Setup.sol)");
         // mockAuction is already deployed and initialized in Setup.sol's setUp function
         emit log_string("setUpStrategy: Creating mock trade factory");
         MockTradeFactory tradeFactory = new MockTradeFactory();
@@ -421,11 +310,7 @@ contract Setup is ExtendedTest, IEvents {
         return address(_strategy);
     }
 
-    function depositIntoStrategy(
-        IStrategyInterface _strategy,
-        address _user,
-        uint256 _amount
-    ) public {
+    function depositIntoStrategy(IStrategyInterface _strategy, address _user, uint256 _amount) public {
         // Mock the wrapper's stake function
         address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
         address CVXCRV = address(asset);
@@ -433,58 +318,27 @@ contract Setup is ExtendedTest, IEvents {
         // Mock transferFrom for asset to strategy
         vm.mockCall(
             address(asset),
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)",
-                _user,
-                address(_strategy),
-                _amount
-            ),
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", _user, address(_strategy), _amount),
             abi.encode(true)
         );
 
         // Mock wrapper.balanceOf to return the expected amount after staking
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(_amount)
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("balanceOf(address)"), abi.encode(_amount));
 
         // Mock wrapper.stake to succeed
-        vm.mockCall(
-            wrapper,
-            abi.encodeWithSignature("stake(uint256,address)"),
-            abi.encode()
-        );
+        vm.mockCall(wrapper, abi.encodeWithSignature("stake(uint256,address)"), abi.encode());
 
         // Mock CVXCRV transfers to succeed
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("transferFrom(address,address,uint256)"), abi.encode(true));
 
         // Mock CVXCRV safeTransferFrom to succeed
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature(
-                "safeTransferFrom(address,address,uint256)"
-            ),
-            abi.encode()
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("safeTransferFrom(address,address,uint256)"), abi.encode());
 
         // Mock CVXCRV balanceOf to return 0 (since it's all staked in wrapper)
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
         // Mock safeTransfer to succeed
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("safeTransfer(address,uint256)"),
-            abi.encode()
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
 
         vm.prank(_user);
         asset.approve(address(_strategy), _amount);
@@ -507,11 +361,7 @@ contract Setup is ExtendedTest, IEvents {
         );
     }
 
-    function mintAndDepositIntoStrategy(
-        IStrategyInterface _strategy,
-        address _user,
-        uint256 _amount
-    ) public {
+    function mintAndDepositIntoStrategy(IStrategyInterface _strategy, address _user, uint256 _amount) public {
         airdrop(asset, _user, _amount);
         depositIntoStrategy(_strategy, _user, _amount);
     }
@@ -524,9 +374,7 @@ contract Setup is ExtendedTest, IEvents {
         uint256 _totalIdle
     ) public view {
         uint256 _assets = _strategy.totalAssets();
-        uint256 _balance = ERC20(_strategy.asset()).balanceOf(
-            address(_strategy)
-        );
+        uint256 _balance = ERC20(_strategy.asset()).balanceOf(address(_strategy));
         uint256 _idle = _balance > _assets ? _assets : _balance;
         uint256 _debt = _assets - _idle;
         assertEq(_assets, _totalAssets, "!totalAssets");
@@ -540,11 +388,7 @@ contract Setup is ExtendedTest, IEvents {
         uint256 newBalance = balanceBefore + _amount;
 
         // Use mockCall instead of deal for compatibility with coverage tests
-        vm.mockCall(
-            address(_asset),
-            abi.encodeWithSignature("balanceOf(address)", _to),
-            abi.encode(newBalance)
-        );
+        vm.mockCall(address(_asset), abi.encodeWithSignature("balanceOf(address)", _to), abi.encode(newBalance));
 
         // Mock transferFrom to succeed
         vm.mockCall(
@@ -554,10 +398,7 @@ contract Setup is ExtendedTest, IEvents {
         );
     }
 
-    function setFees(
-        uint16 _protocolFee,
-        uint16 _performanceFee
-    ) public virtual {
+    function setFees(uint16 _protocolFee, uint16 _performanceFee) public virtual {
         // Ensure management is the caller for these sensitive operations
         vm.prank(management);
         IFactory(factory).set_protocol_fee_recipient(management); // Corrected to use IFactory(factory)
@@ -578,25 +419,13 @@ contract Setup is ExtendedTest, IEvents {
     ) internal virtual {
         // Mock CVXCRV balances
         address CVXCRV = address(asset);
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("balanceOf(address)"),
-            abi.encode(_assetAmount)
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(_assetAmount));
 
         // Mock asset transfer
-        vm.mockCall(
-            address(asset),
-            abi.encodeWithSignature("transfer(address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(address(asset), abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
         // Update the strategy's asset balance for withdrawal using mockCall instead of deal
-        vm.mockCall(
-            address(asset),
-            abi.encodeWithSignature("balanceOf(address)", _strategy),
-            abi.encode(_assetAmount)
-        );
+        vm.mockCall(address(asset), abi.encodeWithSignature("balanceOf(address)", _strategy), abi.encode(_assetAmount));
 
         // Record balance before
         uint256 balanceBefore = asset.balanceOf(_user);

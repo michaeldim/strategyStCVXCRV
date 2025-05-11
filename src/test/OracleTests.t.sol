@@ -30,9 +30,7 @@ contract MockPriceOracle is IPriceOracle {
     mapping(address => uint256) public prices;
 
     // Default hard-coded prices for common tokens
-    function getUSDPrice(
-        address token
-    ) external view override returns (uint256) {
+    function getUSDPrice(address token) external view override returns (uint256) {
         // If a price is set in the prices mapping, return that
         if (prices[token] > 0) {
             return prices[token];
@@ -75,18 +73,9 @@ contract TestStrategyAprOracle is StrategyAprOracle {
     }
 
     // Helper to calculate reward value per second
-    function getRewardValuePerSecond()
-        public
-        view
-        returns (uint256 totalValuePerSecond)
-    {
-        (address[] memory tokens, uint256[] memory rates, ) = cvxCrvUtilities
-            .mainRewardRates();
-        (
-            address[] memory extraTokens,
-            uint256[] memory extraRates,
-
-        ) = cvxCrvUtilities.extraRewardRates();
+    function getRewardValuePerSecond() public view returns (uint256 totalValuePerSecond) {
+        (address[] memory tokens, uint256[] memory rates, ) = cvxCrvUtilities.mainRewardRates();
+        (address[] memory extraTokens, uint256[] memory extraRates, ) = cvxCrvUtilities.extraRewardRates();
 
         // Add value from main rewards
         for (uint i = 0; i < tokens.length; i++) {
@@ -109,22 +98,12 @@ contract TestStrategyAprOracle is StrategyAprOracle {
     function getRewardTokensAndRates()
         public
         view
-        returns (
-            address[] memory tokens,
-            uint256[] memory rates,
-            uint256[] memory groups
-        )
+        returns (address[] memory tokens, uint256[] memory rates, uint256[] memory groups)
     {
-        (
-            address[] memory mainTokens,
-            uint256[] memory mainRates,
-            uint256[] memory mainGroups
-        ) = cvxCrvUtilities.mainRewardRates();
-        (
-            address[] memory extraTokens,
-            uint256[] memory extraRates,
-            uint256[] memory extraGroups
-        ) = cvxCrvUtilities.extraRewardRates();
+        (address[] memory mainTokens, uint256[] memory mainRates, uint256[] memory mainGroups) = cvxCrvUtilities
+            .mainRewardRates();
+        (address[] memory extraTokens, uint256[] memory extraRates, uint256[] memory extraGroups) = cvxCrvUtilities
+            .extraRewardRates();
 
         // Combine main and extra tokens
         tokens = new address[](mainTokens.length + extraTokens.length);
@@ -153,8 +132,7 @@ contract TestStrategyAprOracle is StrategyAprOracle {
 
 contract OracleTests is Test {
     // Set up common constants
-    address public constant STRATEGY =
-        0x0000000000000000000000000000000000000001; // Mock strategy address
+    address public constant STRATEGY = 0x0000000000000000000000000000000000000001; // Mock strategy address
     address public mockStrategy; // Mock strategy for APR calculations
 
     // Token constants
@@ -162,18 +140,13 @@ contract OracleTests is Test {
     address public constant CRV = 0xD533a949740bb3306d119CC777fa900bA034cd52;
     address public constant CVX = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
     address public constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
-    address public constant THREE_CRV =
-        0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490;
-    address public constant STAKED_CVXCRV =
-        0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
+    address public constant THREE_CRV = 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490;
+    address public constant STAKED_CVXCRV = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
 
     // Convex reward contracts
-    address public constant CRV_REWARDS =
-        0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e;
-    address public constant THREE_CRV_REWARDS =
-        0x7091dbb7fcbA54569eF1387Ac89Eb2a5C9F6d2EA;
-    address public constant EXTRA_CVX_REWARDS =
-        0x449f2fd99174e1785CF2A1c79E665Fec3dD1DdC6;
+    address public constant CRV_REWARDS = 0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e;
+    address public constant THREE_CRV_REWARDS = 0x7091dbb7fcbA54569eF1387Ac89Eb2a5C9F6d2EA;
+    address public constant EXTRA_CVX_REWARDS = 0x449f2fd99174e1785CF2A1c79E665Fec3dD1DdC6;
 
     // Test contracts
     TestStrategyAprOracle public aprOracle;
@@ -187,16 +160,12 @@ contract OracleTests is Test {
         mockStrategy = address(0x1234567890123456789012345678901234567890);
 
         // Mock CvxCrvUtilities.apr to return a fixed value for testing
-        address cvxCrvUtilities = address(
-            0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673
-        ); // default in StrategyAprOracle
+        address cvxCrvUtilities = address(0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673); // default in StrategyAprOracle
 
         // Mock the apr function
         vm.mockCall(
             cvxCrvUtilities,
-            abi.encodeWithSelector(
-                bytes4(keccak256("apr(uint256,uint256,uint256)"))
-            ),
+            abi.encodeWithSelector(bytes4(keccak256("apr(uint256,uint256,uint256)"))),
             abi.encode(17.5e16) // 17.5% APR for tests
         );
 
@@ -251,7 +220,7 @@ contract OracleTests is Test {
     // BASIC APR TESTS
     // ============================================================================================
 
-    function test_getApr() public {
+    function test_getApr() public view {
         // Test basic APR calculation
         uint256 apr = aprOracle.aprAfterDebtChange(address(mockStrategy), 0);
 
@@ -264,19 +233,13 @@ contract OracleTests is Test {
         MockPriceOracle fallbackOracle = new MockPriceOracle();
 
         // Create a new oracle instance with a price oracle
-        TestStrategyAprOracle defaultPriceOracle = new TestStrategyAprOracle(
-            address(fallbackOracle)
-        );
+        TestStrategyAprOracle defaultPriceOracle = new TestStrategyAprOracle(address(fallbackOracle));
 
         // Mock the CvxCrvUtilities again for this new oracle instance
-        address cvxCrvUtilities = address(
-            0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673
-        );
+        address cvxCrvUtilities = address(0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673);
         vm.mockCall(
             cvxCrvUtilities,
-            abi.encodeWithSelector(
-                bytes4(keccak256("apr(uint256,uint256,uint256)"))
-            ),
+            abi.encodeWithSelector(bytes4(keccak256("apr(uint256,uint256,uint256)"))),
             abi.encode(17.5e16) // 17.5% APR for tests
         );
 
@@ -313,24 +276,17 @@ contract OracleTests is Test {
         );
 
         // Get APR with default prices
-        uint256 apr = defaultPriceOracle.aprAfterDebtChange(
-            address(STRATEGY),
-            0
-        );
+        uint256 apr = defaultPriceOracle.aprAfterDebtChange(address(STRATEGY), 0);
 
         // Should return 17.5% as mocked
-        assertEq(
-            apr,
-            17.5e16,
-            "APR should match the mocked value even with default prices"
-        );
+        assertEq(apr, 17.5e16, "APR should match the mocked value even with default prices");
     }
 
     // ============================================================================================
     // TOKEN PRICE TESTS
     // ============================================================================================
 
-    function test_tokenPrices() public {
+    function test_tokenPrices() public view {
         // Test token price retrieval through the oracle
         uint256 crvPrice = aprOracle.getUnderlyingPrice(CRV);
         uint256 cvxPrice = aprOracle.getUnderlyingPrice(CVX);
@@ -360,20 +316,13 @@ contract OracleTests is Test {
     // REWARD RATE TESTS
     // ============================================================================================
 
-    function test_getRewardTokensAndRates() public {
+    function test_getRewardTokensAndRates() public view {
         // Get reward tokens and rates from the oracle
-        (
-            address[] memory rewardTokens,
-            uint256[] memory rewardRates,
-            uint256[] memory rewardGroups
-        ) = aprOracle.getRewardTokensAndRates();
+        (address[] memory rewardTokens, uint256[] memory rewardRates, uint256[] memory rewardGroups) = aprOracle
+            .getRewardTokensAndRates();
 
         // Verify returned arrays match what we expect
-        assertEq(
-            rewardTokens.length,
-            2,
-            "Should have 2 reward tokens (CRV and CVX)"
-        );
+        assertEq(rewardTokens.length, 2, "Should have 2 reward tokens (CRV and CVX)");
         assertEq(rewardRates.length, 2, "Should have 2 reward rates");
         assertEq(rewardGroups.length, 2, "Should have 2 reward groups");
 
@@ -390,7 +339,7 @@ contract OracleTests is Test {
     // USD VALUE TESTS
     // ============================================================================================
 
-    function test_getRewardValuePerSecond() public {
+    function test_getRewardValuePerSecond() public view {
         // Get reward value per second
         uint256 rewardValue = aprOracle.getRewardValuePerSecond();
 
@@ -401,11 +350,7 @@ contract OracleTests is Test {
         uint256 expectedValue = 1.4e18;
 
         // Verify reward value
-        assertEq(
-            rewardValue,
-            expectedValue,
-            "Reward value should be $1.40 per second"
-        );
+        assertEq(rewardValue, expectedValue, "Reward value should be $1.40 per second");
     }
 
     function test_getRewardValuePerSecondWithUpdatedPrices() public {
@@ -423,11 +368,7 @@ contract OracleTests is Test {
         uint256 expectedValue = 2.5e18;
 
         // Verify reward value with updated prices
-        assertEq(
-            rewardValue,
-            expectedValue,
-            "Reward value should be $2.50 per second with updated prices"
-        );
+        assertEq(rewardValue, expectedValue, "Reward value should be $2.50 per second with updated prices");
     }
 
     // ============================================================================================
@@ -443,13 +384,7 @@ contract OracleTests is Test {
         );
 
         // Allow small deviation - check that we're close to our expected mock value
-        uint256 calculatedApr = aprOracle.aprAfterDebtChange(
-            address(STRATEGY),
-            0
-        );
-        assertTrue(
-            calculatedApr >= 17e16 && calculatedApr <= 18e16,
-            "APR should match our mocked value around 17.5%"
-        );
+        uint256 calculatedApr = aprOracle.aprAfterDebtChange(address(STRATEGY), 0);
+        assertTrue(calculatedApr >= 17e16 && calculatedApr <= 18e16, "APR should match our mocked value around 17.5%");
     }
 }

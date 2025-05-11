@@ -3,15 +3,14 @@ name: Lint
 on:
   push:
     branches:
-    - master
+      - master
   pull_request:
 
 jobs:
+  solidity:
+    runs-on: ubuntu-latest
 
-    solidity:
-      runs-on: ubuntu-latest
-
-      steps:
+    steps:
       - name: Check out github repository
         uses: actions/checkout@v3
         with:
@@ -24,7 +23,7 @@ jobs:
 
       - name: Set yarn cache directory path
         id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
 
       - name: Restore yarn cache
         uses: actions/cache@v3
@@ -45,10 +44,10 @@ jobs:
       - name: run linter check on *.sol file
         run: yarn lint
 
-    commits:
-      runs-on: ubuntu-latest
+  commits:
+    runs-on: ubuntu-latest
 
-      steps:
+    steps:
       - name: Check out github repository
         uses: actions/checkout@v3
         with:

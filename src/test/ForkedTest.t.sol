@@ -82,18 +82,12 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
             if (tokenBalance > 0) {
                 // Swap the reward token for more asset (cvxCRV) through the auction
                 IERC20(token).approve(address(AUCTION), tokenBalance);
-                AUCTION.initiateTrade(
-                    tokenBalance,
-                    token,
-                    address(asset),
-                    address(this)
-                );
+                AUCTION.initiateTrade(tokenBalance, token, address(asset), address(this));
             }
         }
 
         // Stake any newly acquired asset into the wrapper
-        uint256 newAssets = IERC20(asset).balanceOf(address(this)) -
-            totalAssets;
+        uint256 newAssets = IERC20(asset).balanceOf(address(this)) - totalAssets;
 
         if (newAssets > 0) {
             IERC20(asset).approve(address(WRAPPER), newAssets);
@@ -119,10 +113,7 @@ contract ForkedTest is Test {
 
     function setUp() public {
         // Fork Ethereum mainnet with environment variable or default Alchemy URL
-        string memory rpcUrl = vm.envOr(
-            "ETH_RPC_URL",
-            string("https://eth-mainnet.alchemyapi.io/v2/demo")
-        );
+        string memory rpcUrl = vm.envOr("ETH_RPC_URL", string("https://eth-mainnet.alchemyapi.io/v2/demo"));
         vm.createSelectFork(rpcUrl);
         console.log("=== Mainnet Forked Test ===");
 
@@ -169,11 +160,7 @@ contract ForkedTest is Test {
         uint256 depositAmount = 1 * 10 ** 18; // 1 CVXCRV
 
         // Mock keeper having CVXCRV for balanceOf check
-        vm.mockCall(
-            CVXCRV,
-            abi.encodeWithSignature("balanceOf(address)", keeper),
-            abi.encode(depositAmount)
-        );
+        vm.mockCall(CVXCRV, abi.encodeWithSignature("balanceOf(address)", keeper), abi.encode(depositAmount));
 
         // Mock transferFrom for deposit
         vm.mockCall(
@@ -185,7 +172,12 @@ contract ForkedTest is Test {
         // Also mock safeTransferFrom for extra safety
         vm.mockCall(
             CVXCRV,
-            abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", keeper, address(strategy), depositAmount),
+            abi.encodeWithSignature(
+                "safeTransferFrom(address,address,uint256)",
+                keeper,
+                address(strategy),
+                depositAmount
+            ),
             abi.encode()
         );
 

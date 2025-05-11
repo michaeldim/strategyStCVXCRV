@@ -21,14 +21,11 @@ contract IntegrationTest is Test {
     MockAuction auction;
 
     // Token constants
-    address internal constant STAKED_CVXCRV =
-        0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
-    address constant ASSET =
-        address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7); // cvxCRV
+    address internal constant STAKED_CVXCRV = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
+    address constant ASSET = address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7); // cvxCRV
     address constant CRV = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
     address constant CVX = address(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    address constant CRVUSD =
-        address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E);
+    address constant CRVUSD = address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E);
 
     // Mock tokens for testing
     MockERC20 mockCvxCrv;
@@ -47,14 +44,10 @@ contract IntegrationTest is Test {
         auction = new MockAuction(address(mockCvxCrv));
 
         // Patch: Mock CvxCrvUtilities for oracle
-        address cvxCrvUtilities = address(
-            0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673
-        );
+        address cvxCrvUtilities = address(0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673);
         vm.mockCall(
             cvxCrvUtilities,
-            abi.encodeWithSelector(
-                bytes4(keccak256("apr(uint256,uint256,uint256)"))
-            ),
+            abi.encodeWithSelector(bytes4(keccak256("apr(uint256,uint256,uint256)"))),
             abi.encode(1e17) // 10% APR
         );
 
@@ -104,16 +97,10 @@ contract IntegrationTest is Test {
 
     function testComponentInteractions() public {
         // Test that we can access the oracle's name
-        assertEq(
-            oracle.name(),
-            "cvxCRV Strategy APR Oracle",
-            "Oracle name should match expected"
-        );
+        assertEq(oracle.name(), "cvxCRV Strategy APR Oracle", "Oracle name should match expected");
 
         // Mock mainRewardRates to return non-empty arrays
-        address cvxCrvUtilities = address(
-            0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673
-        );
+        address cvxCrvUtilities = address(0xadd2F542f9FF06405Fabf8CaE4A74bD0FE29c673);
 
         // Mock the mainRewardRates result to match our expected 10% APR
         address[] memory tokens = new address[](1);
@@ -139,9 +126,7 @@ contract IntegrationTest is Test {
         // Directly mock the aprAfterDebtChange method to return our expected value
         vm.mockCall(
             address(oracle),
-            abi.encodeWithSelector(
-                bytes4(keccak256("aprAfterDebtChange(address,int256)"))
-            ),
+            abi.encodeWithSelector(bytes4(keccak256("aprAfterDebtChange(address,int256)"))),
             abi.encode(1e17) // 10% APR as expected
         );
 
@@ -155,11 +140,7 @@ contract IntegrationTest is Test {
         auction.setMockReturnAmount(50e18);
 
         // Verify the auction would return the expected amount
-        assertEq(
-            auction.getMockReturnAmount(),
-            50e18,
-            "Auction should return expected amount"
-        );
+        assertEq(auction.getMockReturnAmount(), 50e18, "Auction should return expected amount");
     }
 
     // Add more tests for other component interactions if needed
