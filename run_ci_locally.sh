@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script simulates the GitHub workflow locally
-# 
+#
 # Usage:
 #   ./run_ci_locally.sh                         # Run all checks
 #   ./run_ci_locally.sh --ignore-slither        # Run all checks but ignore Slither failures
@@ -253,7 +253,7 @@ else
   # Use FORK_URL if available, otherwise fall back to ETH_RPC_URL
   FORK_URL_TO_USE=${FORK_URL:-$ETH_RPC_URL}
   echo -e "${YELLOW}Running tests with fork URL: ${FORK_URL_TO_USE}${NC}"
-  
+
   # Run the tests and capture both exit code and output
   echo -e "${YELLOW}Running forge test -vv --fork-url ${FORK_URL_TO_USE}${NC}"
   forge test -vv --fork-url ${FORK_URL_TO_USE} > /tmp/test_output.log 2>&1 &
@@ -261,7 +261,7 @@ else
   spinner $test_pid
   wait $test_pid
   test_exit=$?
-  
+
   if [ $test_exit -eq 0 ]; then
     echo -e "${GREEN}✓ All tests passed${NC}"
     # Display the number of passing tests
@@ -295,7 +295,7 @@ elif [ "$TEST_FAILED" = true ] && [ "$1" != "--run-coverage-anyway" ] && [ "$2" 
 else
   # Use FORK_URL if available, otherwise fall back to ETH_RPC_URL
   FORK_URL_TO_USE=${FORK_URL:-$ETH_RPC_URL}
-  
+
   # Generate coverage report
   echo -e "${YELLOW}Generating LCOV coverage report...${NC}"
   echo -e "${YELLOW}Running forge coverage --report lcov --fork-url ${FORK_URL_TO_USE}${NC}"
@@ -304,13 +304,13 @@ else
   spinner $coverage_pid
   wait $coverage_pid
   coverage_exit=$?
-  
+
   if [ $coverage_exit -eq 0 ]; then
     echo -e "${GREEN}✓ Coverage report generated${NC}"
-    
+
     # Generate summary (similar to GitHub Actions workflow)
     echo -e "${YELLOW}Generating coverage summary...${NC}"
-    
+
     # Check if lcov is installed
     if command -v lcov &> /dev/null; then
       # Make sure the lcov.info file exists
@@ -319,7 +319,7 @@ else
         if [ $? -eq 0 ]; then
           echo -e "${GREEN}=== Coverage Summary ===${NC}"
           cat /tmp/coverage_summary.log
-          
+
           # Extract and display the overall line coverage percentage
           LINE_COVERAGE=$(grep "lines......:" /tmp/coverage_summary.log | awk '{print $2}')
           if [ -n "$LINE_COVERAGE" ]; then
@@ -332,14 +332,14 @@ else
       else
         echo -e "${YELLOW}⚠ No lcov.info file found after coverage run${NC}"
       fi
-      
+
       # Check if we should generate HTML report
       if [ "$1" = "--html-coverage" ] || [ "$2" = "--html-coverage" ]; then
         echo -e "${YELLOW}Generating HTML coverage report...${NC}"
         mkdir -p coverage-report
-        
+
         make coverage-html > /dev/null 2>&1
-        
+
         if [ $? -eq 0 ]; then
           echo -e "${GREEN}✓ HTML coverage report generated${NC}"
           echo -e "${YELLOW}Report available at: ${NC}coverage-report/index.html"
