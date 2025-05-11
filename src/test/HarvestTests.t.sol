@@ -117,18 +117,12 @@ contract FixedStrategy is StCVXCRVStrategy {
             if (tokenBalance > 0) {
                 // Swap the reward token for more asset (cvxCRV) through the auction
                 IERC20(token).approve(address(AUCTION), tokenBalance);
-                AUCTION.initiateTrade(
-                    tokenBalance,
-                    token,
-                    address(asset),
-                    address(this)
-                );
+                AUCTION.initiateTrade(tokenBalance, token, address(asset), address(this));
             }
         }
 
         // Stake any newly acquired asset into the wrapper
-        uint256 newAssets = IERC20(asset).balanceOf(address(this)) -
-            totalAssets;
+        uint256 newAssets = IERC20(asset).balanceOf(address(this)) - totalAssets;
 
         if (newAssets > 0) {
             IERC20(asset).approve(address(WRAPPER), newAssets);
@@ -159,9 +153,7 @@ contract MockMinimalWrapper is ICvxCrvStakingWrapper {
     function totalSupply() external pure override returns (uint256) {
         return 0;
     }
-    function balanceOf(
-        address account
-    ) external view override returns (uint256) {
+    function balanceOf(address account) external view override returns (uint256) {
         return stakedBalances[account];
     }
     function stake(uint256 _amount, address _onBehalfOf) external override {
@@ -173,10 +165,7 @@ contract MockMinimalWrapper is ICvxCrvStakingWrapper {
     function getReward(address) external override {}
 
     // --- ERC20 Interface ---
-    function allowance(
-        address,
-        address
-    ) external pure override returns (uint256) {
+    function allowance(address, address) external pure override returns (uint256) {
         return 0;
     }
     function approve(address, uint256) external pure override returns (bool) {
@@ -185,23 +174,13 @@ contract MockMinimalWrapper is ICvxCrvStakingWrapper {
     function transfer(address, uint256) external pure override returns (bool) {
         return true;
     }
-    function transferFrom(
-        address,
-        address,
-        uint256
-    ) external pure override returns (bool) {
+    function transferFrom(address, address, uint256) external pure override returns (bool) {
         return true;
     }
-    function increaseAllowance(
-        address,
-        uint256
-    ) external pure override returns (bool) {
+    function increaseAllowance(address, uint256) external pure override returns (bool) {
         return true;
     }
-    function decreaseAllowance(
-        address,
-        uint256
-    ) external pure override returns (bool) {
+    function decreaseAllowance(address, uint256) external pure override returns (bool) {
         return true;
     }
     function name() external pure override returns (string memory) {
@@ -220,25 +199,13 @@ contract MockMinimalWrapper is ICvxCrvStakingWrapper {
     function stakeFor(address, uint256) external pure override {}
     function stakeAndSetWeight(uint256, uint256) external pure override {}
     function getReward(address, address) external pure override {}
-    function earned(
-        address
-    )
-        external
-        pure
-        override
-        returns (ICvxCrvStakingWrapper.EarnedData[] memory)
-    {
+    function earned(address) external pure override returns (ICvxCrvStakingWrapper.EarnedData[] memory) {
         return new ICvxCrvStakingWrapper.EarnedData[](0);
     }
-    function userRewardBalance(
-        address,
-        uint256
-    ) external pure override returns (uint256) {
+    function userRewardBalance(address, uint256) external pure override returns (uint256) {
         return 0;
     }
-    function userRewardWeight(
-        address
-    ) external pure override returns (uint256) {
+    function userRewardWeight(address) external pure override returns (uint256) {
         return 0;
     }
     function user_checkpoint(address) external pure override returns (bool) {
@@ -256,14 +223,10 @@ contract MockMinimalWrapper is ICvxCrvStakingWrapper {
     function rewardSupply(uint256) external pure override returns (uint256) {
         return 0;
     }
-    function rewards(
-        uint256
-    ) external pure override returns (address, uint8, uint128, uint128) {
+    function rewards(uint256) external pure override returns (address, uint8, uint128, uint128) {
         return (address(0), 0, 0, 0);
     }
-    function registeredRewards(
-        address
-    ) external pure override returns (uint256) {
+    function registeredRewards(address) external pure override returns (uint256) {
         return 0;
     }
     function rewardHook() external pure override returns (address) {
@@ -359,14 +322,11 @@ contract SimplifiedStrategy {
 
 contract HarvestTests is Test {
     // Set up common addresses and constants
-    address constant ASSET =
-        address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7); // cvxCRV
+    address constant ASSET = address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7); // cvxCRV
     address constant CRV = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
     address constant CVX = address(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    address constant CRVUSD =
-        address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E);
-    address constant WRAPPER =
-        address(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
+    address constant CRVUSD = address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E);
+    address constant WRAPPER = address(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
 
     // Tokens for testing
     MockERC20 cvxCrvToken;
@@ -472,11 +432,7 @@ contract HarvestTests is Test {
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
         // Verify harvest amount
-        assertEq(
-            harvestAmount,
-            50e18,
-            "Harvest should return the expected amount"
-        );
+        assertEq(harvestAmount, 50e18, "Harvest should return the expected amount");
 
         // Reset mock for other tests
         fixedStrategy.resetMockHarvestReturn();
@@ -498,11 +454,7 @@ contract HarvestTests is Test {
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
         // Verify no rewards
-        assertEq(
-            harvestAmount,
-            0,
-            "Harvest should return 0 when no rewards are available"
-        );
+        assertEq(harvestAmount, 0, "Harvest should return 0 when no rewards are available");
     }
 
     function test_HarvestWhenShutdown() public {
@@ -513,11 +465,7 @@ contract HarvestTests is Test {
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
         // Verify no harvest during shutdown
-        assertEq(
-            harvestAmount,
-            0,
-            "Harvest should return 0 when strategy is shutdown"
-        );
+        assertEq(harvestAmount, 0, "Harvest should return 0 when strategy is shutdown");
     }
 
     // ============================================================================================
@@ -532,11 +480,7 @@ contract HarvestTests is Test {
         uint256 harvestAmount = simplifiedStrategy.harvest();
 
         // Verify harvest amount from simplified strategy
-        assertEq(
-            harvestAmount,
-            10e18,
-            "Simplified harvest should return mock amount"
-        );
+        assertEq(harvestAmount, 10e18, "Simplified harvest should return mock amount");
     }
 
     // ============================================================================================
@@ -565,11 +509,7 @@ contract HarvestTests is Test {
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
         // Verify harvest amount (sum of all returns)
-        assertEq(
-            harvestAmount,
-            45e18,
-            "Harvest should return the sum of all swapped rewards"
-        );
+        assertEq(harvestAmount, 45e18, "Harvest should return the sum of all swapped rewards");
     }
 
     function test_HarvestWithPartialFailures() public {
@@ -597,11 +537,7 @@ contract HarvestTests is Test {
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
         // Verify harvest amount (only successful swaps - CRV and CRVUSD, not CVX)
-        assertEq(
-            harvestAmount,
-            30e18,
-            "Harvest should only count successful swaps"
-        );
+        assertEq(harvestAmount, 30e18, "Harvest should only count successful swaps");
 
         // Reset mock for other tests
         fixedStrategy.resetMockHarvestReturn();
