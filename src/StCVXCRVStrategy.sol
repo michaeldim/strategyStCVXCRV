@@ -5,18 +5,16 @@ import {BaseHealthCheck, ERC20} from "@periphery/Bases/HealthCheck/BaseHealthChe
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICvxCrvStakingWrapper} from "./interfaces/ICvxCrvStakingWrapper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {AuctionSwapper, Auction} from "@periphery/swappers/AuctionSwapper.sol";
 import {TradeFactorySwapper} from "@periphery/swappers/TradeFactorySwapper.sol";
 import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @title cvxCRV Staking and Compounding Strategy
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
- * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseHealthCheck for safety,
- *      AuctionSwapper for auction-based reward sales, and TradeFactorySwapper for direct DEX reward sales.
+ * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseHealthCheck for safety
+ *      and TradeFactorySwapper for direct DEX reward sales.
  */
-contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwapper, ReentrancyGuard {
+contract StCVXCRVStrategy is BaseHealthCheck, TradeFactorySwapper {
     using SafeERC20 for ERC20;
     using SafeERC20 for IERC20;
 
@@ -33,8 +31,6 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     uint256 public idleThreshold = 25 * 10 ** 18;
 
     // --- Reward selling config ---
-    bool public useTradeFactory = true;
-    bool public useAuction = true;
     mapping(address => uint256) public minAmountToSell;
     address[] public strategyRewardTokens;
 
@@ -50,7 +46,6 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         address _cvx,
         address _crvUsd,
         address _wrapperAddress,
-        address _providedAuctionAddress,
         address _tradeFactoryAddress
     ) BaseHealthCheck(_asset, _name) {
         // Zero address validations
@@ -68,16 +63,9 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
 
         strategyRewardTokens.push(CRV);
         strategyRewardTokens.push(CRVUSD);
+        strategyRewardTokens.push(CVX);
 
         IERC20(CVXCRV).safeApprove(address(WRAPPER), type(uint256).max);
-
-        // Setup AuctionSwapper
-        if (_providedAuctionAddress != address(0)) {
-            auction = _providedAuctionAddress;
-        }
-        _enableAuction(CRV, CVXCRV);
-        _enableAuction(CVX, CVXCRV);
-        _enableAuction(CRVUSD, CVXCRV);
 
         // Setup TradeFactorySwapper
         if (_tradeFactoryAddress != address(0)) {
@@ -125,18 +113,12 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         external
         view
         returns (
-            bool _useTradeFactory,
-            bool _useAuction,
             address _tradeFactory,
-            address _auction,
             uint256[] memory _minAmounts,
             address[] memory _tokens
         )
     {
-        _useTradeFactory = useTradeFactory;
-        _useAuction = useAuction;
         _tradeFactory = tradeFactory();
-        _auction = auction;
 
         _tokens = new address[](strategyRewardTokens.length);
         _minAmounts = new uint256[](strategyRewardTokens.length);
@@ -274,8 +256,11 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
     function _sellRewards() internal {
         // Get TradeFactory address once
         address _tf = tradeFactory();
-        bool hasTradeFactory = useTradeFactory && _tf != address(0);
-        bool hasAuction = useAuction && auction != address(0);
+
+        // Early exit if no trading mechanism available
+        if (_tf == address(0)) {
+            return;
+        }
 
         // Cache array length
         uint256 rewardCount = strategyRewardTokens.length;
@@ -283,84 +268,23 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         // Defensive: limit loop to 5 tokens (not user-controlled, but extra safe)
         require(rewardCount <= 5, "Too many reward tokens");
 
-        // Early exit if no selling mechanisms available
-        if (!hasTradeFactory && !hasAuction) {
-            return;
-        }
-
-        // Create arrays to store which tokens need processing
-        address[] memory tokensToAuction = new address[](rewardCount);
+        // Create array to store which tokens need processing
         address[] memory tokensToTrade = new address[](rewardCount);
-        uint256[] memory balances = new uint256[](rewardCount);
-        uint256 auctionCount = 0;
         uint256 tradeCount = 0;
 
-        // This loop is safe: strategyRewardTokens is a small, internal array
+        // Check all reward tokens
         for (uint256 i = 0; i < rewardCount; i++) {
             address reward = strategyRewardTokens[i];
-            balances[i] = IERC20(reward).balanceOf(address(this));
-        }
-
-        // Process tokens that need selling (using previously collected balances)
-        for (uint256 i = 0; i < rewardCount; i++) {
-            address reward = strategyRewardTokens[i];
-            uint256 balance = balances[i];
+            uint256 balance = IERC20(reward).balanceOf(address(this));
             uint256 minAmount = minAmountToSell[reward];
 
             if (balance > minAmount) {
-                if (hasAuction) {
-                    tokensToAuction[auctionCount++] = reward;
-                } else if (hasTradeFactory) {
-                    tokensToTrade[tradeCount++] = reward;
-                }
+                tokensToTrade[tradeCount++] = reward;
             }
         }
 
-        // Second phase: process auctions (no loops with external calls)
-        _processAuctions(tokensToAuction, auctionCount);
-
-        // Third phase: setup trades (separate function to reduce complexity)
-        if (hasTradeFactory) {
-            _setupTrades(_tf, tokensToTrade, tradeCount, tokensToAuction, auctionCount, hasAuction);
-        }
-    }
-
-    /// @dev Helper function to process auctions for multiple tokens
-    function _processAuctions(address[] memory _tokens, uint256 _count) internal {
-        // Defensive: limit loop to 5 tokens (not user-controlled, but extra safe)
-        require(_count <= 5, "Too many tokens to auction");
-        // This loop is safe: _tokens is always a small, internal array
-        if (auction == address(0)) {
-            return;
-        }
-        for (uint256 i = 0; i < _count; i++) {
-            address token = _tokens[i];
-            if (token == address(0)) continue;
-            uint256 balance = IERC20(token).balanceOf(address(this));
-            if (balance > 0) {
-                IERC20(token).safeTransfer(auction, balance);
-                try Auction(auction).kick(token) {} catch {}
-            }
-        }
-    }
-
-    /// @dev Helper function to setup trades for tokens
-    function _setupTrades(
-        address _tf,
-        address[] memory _tradeTokens,
-        uint256 _tradeCount,
-        address[] memory _auctionTokens,
-        uint256 _auctionCount,
-        bool _hasAuction
-    ) internal {
-        // Create batch enabling function that processes multiple tokens at once
-        // instead of making individual external calls inside a loop
-        _enableTradesInBatch(_tf, _tradeTokens, _tradeCount);
-
-        // Setup trades for auctioned tokens too if needed
-        if (_hasAuction) {
-            _enableTradesInBatch(_tf, _auctionTokens, _auctionCount);
-        }
+        // Enable trades for all tokens at once
+        _enableTradesInBatch(_tf, tokensToTrade, tradeCount);
     }
 
     /// @dev Helper to enable multiple trades in a more gas-efficient way
@@ -374,8 +298,6 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
             }
         }
     }
-
-    // _kickAuction is deprecated and removed as it is never used.
 
     /*//////////////////////////////////////////////////////////////
                       MANAGEMENT FUNCTIONS
@@ -413,29 +335,6 @@ contract StCVXCRVStrategy is BaseHealthCheck, AuctionSwapper, TradeFactorySwappe
         for (uint256 i = 0; i < _tokens.length; i++) {
             minAmountToSell[_tokens[i]] = _minAmounts[i];
         }
-    }
-
-    /// @notice Enable/disable TradeFactory for swapping rewards
-    function setUseTradeFactory(bool _useTradeFactory) external onlyManagement {
-        require(!_useTradeFactory || tradeFactory() != address(0), "TradeFactory not set");
-        useTradeFactory = _useTradeFactory;
-    }
-
-    /// @notice Enable/disable Auctions for swapping rewards
-    function setUseAuction(bool _useAuction) external onlyManagement {
-        require(!_useAuction || auction != address(0), "Auction not set");
-        useAuction = _useAuction;
-    }
-
-    /// @notice Set the address of the auction contract
-    function setAuction(address _auction) external onlyManagement {
-        require(_auction != address(0), "Auction cannot be zero address");
-        auction = _auction;
-    }
-
-    /// @notice Enable auction route for swapping a token to another
-    function enableAuctionRoute(address _from, address _to) external onlyManagement {
-        _enableAuction(_from, _to);
     }
 
     /// @notice Enable trade factory route for swapping a token to another

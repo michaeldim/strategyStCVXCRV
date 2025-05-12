@@ -50,7 +50,7 @@ contract InternalFunctionsTest is Test {
             address(cvx), // CVX
             address(crvUsd), // CRVUSD
             address(this), // wrapper - we'll mock this using the test contract
-            address(mockAuction),
+            address(mockAuction), // unused but kept for test compatibility
             address(mockTradeFactory)
         );
 
@@ -232,10 +232,9 @@ contract InternalFunctionsTest is Test {
         cvx.mint(address(strategy), 500 * 1e18);
         crvUsd.mint(address(strategy), 500 * 1e18);
 
-        // Configure to use TradeFactory instead of auction
+        // Configure the TradeFactory
         // No need for vm.prank since we've mocked isManagement
-        strategy.setUseAuction(false);
-        strategy.setUseTradeFactory(true);
+        // TradeFactory is already set up in setUp
 
         // Call sell rewards function which should now use TradeFactory
         strategy.testSellRewards();
@@ -247,9 +246,8 @@ contract InternalFunctionsTest is Test {
 
     /// @notice Test the early return in _sellRewards when no mechanisms are available
     function test_sellRewards_noMechanisms() public {
-        // Configure to disable both selling mechanisms
-        strategy.setUseAuction(false);
-        strategy.setUseTradeFactory(false);
+        // Configure to disable selling mechanisms by setting trade factory to zero address
+        strategy.setTradeFactory(address(0));
 
         // Give strategy some reward tokens
         crv.mint(address(strategy), 500 * 1e18);

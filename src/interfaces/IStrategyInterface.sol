@@ -4,15 +4,11 @@ pragma solidity ^0.8.23;
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 
 interface IStrategyInterface is IStrategy {
-    // Auction and TradeFactory setup functions
-    function setAuction(address _auction) external;
+    // TradeFactory setup functions
     function setTradeFactory(address _tradeFactory) external;
-    function enableAuctionRoute(address _from, address _to) external;
     function enableTradeFactoryRoute(address _from, address _to) external;
 
     // Settings and configuration functions
-    function setUseTradeFactory(bool _useTradeFactory) external;
-    function setUseAuction(bool _useAuction) external;
     function setMinAmountToSell(address _token, uint256 _minAmount) external;
     function setMinAmountsToSell(address[] calldata _tokens, uint256[] calldata _minAmounts) external;
     function setDepositLimit(uint256 _limit) external;
@@ -31,10 +27,7 @@ interface IStrategyInterface is IStrategy {
         external
         view
         returns (
-            bool _useTradeFactory,
-            bool _useAuction,
             address _tradeFactory,
-            address _auction,
             uint256[] memory _minAmounts,
             address[] memory _tokens
         );
@@ -63,9 +56,6 @@ interface IStrategyInterface is IStrategy {
     function WRAPPER() external view returns (address);
 
     // State variables
-    function useTradeFactory() external view returns (bool);
-    function useAuction() external view returns (bool);
-    function auction() external view returns (address);
     function tradeFactory() external view returns (address);
     function doHealthCheck() external view returns (bool);
     function idleThreshold() external view returns (uint256);

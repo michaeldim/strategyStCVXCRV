@@ -7,7 +7,7 @@ import {StCVXCRVStrategy} from "../StCVXCRVStrategy.sol";
 import {TestStrategy} from "./TestStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICvxCrvStakingWrapper} from "../interfaces/ICvxCrvStakingWrapper.sol";
-import {MockAuction} from "./utils/MockAuction.sol";
+import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.sol";
 import {MockERC20} from "./utils/MockERC20.sol";
 
 /**
@@ -34,9 +34,6 @@ contract FixedStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
     uint256 public constant INITIAL_DEPOSIT = 100e18;
 
-    // Reference to auction interface for harvesting
-    MockAuction public AUCTION;
-
     // For direct testing, allow overriding the harvest return amount
     uint256 public mockHarvestReturn = type(uint256).max;
     bool public useMockReturn = false;
@@ -60,18 +57,14 @@ contract FixedStrategy is StCVXCRVStrategy {
             _cvx,
             _crvUsd,
             _wrapperAddress,
-            _providedAuctionAddress,
             _tradeFactoryAddress
         )
-    {
-        // Store auction reference
-        AUCTION = MockAuction(_providedAuctionAddress);
-    }
+    {}
 
-    // Add CVX to strategyRewardTokens for the test
+    // This function is no longer needed as CVX is already added in the main contract constructor
     function fixRewardTokens() external {
-        // Make sure CVX is in the reward tokens list, Strategy constructor only adds CRV and CRVUSD
-        strategyRewardTokens.push(CVX);
+        // CVX is now already added in the main constructor
+        // Previously: strategyRewardTokens.push(CVX);
     }
 
     function setMockShutdown(bool _isShutdown) external {
@@ -109,15 +102,17 @@ contract FixedStrategy is StCVXCRVStrategy {
         // Claim rewards from the staking wrapper
         WRAPPER.getReward(address(this));
 
-        // Process each reward token (CRV, CVX, etc.)
-        for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
-            address token = strategyRewardTokens[i];
-            uint256 tokenBalance = IERC20(token).balanceOf(address(this));
+        // Process each reward token using TradeFactory
+        address tf = tradeFactory();
+        if (tf != address(0)) {
+            for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
+                address token = strategyRewardTokens[i];
+                uint256 tokenBalance = IERC20(token).balanceOf(address(this));
 
-            if (tokenBalance > 0) {
-                // Swap the reward token for more asset (cvxCRV) through the auction
-                IERC20(token).approve(address(AUCTION), tokenBalance);
-                AUCTION.initiateTrade(tokenBalance, token, address(asset), address(this));
+                if (tokenBalance > minAmountToSell[token]) {
+                    // Enable trade for the token
+                    try ITradeFactory(tf).enable(token, CVXCRV) {} catch {}
+                }
             }
         }
 
@@ -275,7 +270,6 @@ contract SimplifiedStrategy {
     address public CRV;
     address public CVX;
     address public CRVUSD;
-    MockAuction public AUCTION;
 
     uint256 public harvestAmount;
 
@@ -285,8 +279,7 @@ contract SimplifiedStrategy {
         address _crv,
         address _cvx,
         address _crvUsd,
-        address _wrapperAddress,
-        address _auctionAddress
+        address _wrapperAddress
     ) {
         asset = _asset;
         CVXCRV = _cvxcrv;
@@ -294,7 +287,6 @@ contract SimplifiedStrategy {
         CVX = _cvx;
         CRVUSD = _crvUsd;
         WRAPPER = MockMinimalWrapper(_wrapperAddress);
-        AUCTION = MockAuction(_auctionAddress);
     }
 
     // Simplified harvest function for testing
@@ -335,7 +327,6 @@ contract HarvestTests is Test {
     MockERC20 crvUsdToken;
 
     // Mock components
-    MockAuction auction;
     MockMinimalWrapper mockWrapper;
 
     // Strategies
@@ -353,9 +344,6 @@ contract HarvestTests is Test {
         cvxToken = new MockERC20("Convex Token", "CVX", 18);
         crvUsdToken = new MockERC20("Curve USD", "crvUSD", 18);
 
-        // Create mock auction
-        auction = new MockAuction(address(cvxCrvToken));
-
         // Create mock wrapper
         mockWrapper = new MockMinimalWrapper(address(cvxCrvToken));
 
@@ -368,7 +356,7 @@ contract HarvestTests is Test {
             address(cvxToken),
             address(crvUsdToken),
             address(mockWrapper),
-            address(auction),
+            address(0), // No auction needed
             address(0) // No trade factory needed for tests
         );
         fixedStrategy.fixRewardTokens();
@@ -379,8 +367,7 @@ contract HarvestTests is Test {
             address(crvToken),
             address(cvxToken),
             address(crvUsdToken),
-            address(mockWrapper),
-            address(auction)
+            address(mockWrapper)
         );
 
         // Set up test users
@@ -405,26 +392,6 @@ contract HarvestTests is Test {
     // ============================================================================================
 
     function test_StandardHarvest() public {
-        // Approve auction to take reward tokens
-        vm.startPrank(address(fixedStrategy));
-        crvToken.approve(address(auction), type(uint256).max);
-        cvxToken.approve(address(auction), type(uint256).max);
-        crvUsdToken.approve(address(auction), type(uint256).max);
-        vm.stopPrank();
-
-        // Enable tokens in the auction
-        auction.enable(address(crvToken));
-        auction.enable(address(cvxToken));
-        auction.enable(address(crvUsdToken));
-
-        // Clear any existing token-specific return amounts
-        auction.setTokenReturnAmount(address(crvToken), 0);
-        auction.setTokenReturnAmount(address(cvxToken), 0);
-        auction.setTokenReturnAmount(address(crvUsdToken), 0);
-
-        // Configure auction to return cvxCRV for rewards
-        auction.setMockReturnAmount(50e18);
-
         // Directly set the expected return value
         fixedStrategy.setMockHarvestReturn(50e18);
 
@@ -488,55 +455,27 @@ contract HarvestTests is Test {
     // ============================================================================================
 
     function test_HarvestWithMultipleRewards() public {
-        // Enable tokens in the auction
-        auction.enable(address(crvToken));
-        auction.enable(address(cvxToken));
-        auction.enable(address(crvUsdToken));
-
-        // Approve auction to take reward tokens
-        vm.startPrank(address(fixedStrategy));
-        crvToken.approve(address(auction), type(uint256).max);
-        cvxToken.approve(address(auction), type(uint256).max);
-        crvUsdToken.approve(address(auction), type(uint256).max);
-        vm.stopPrank();
-
-        // Configure auction to return different amounts for different tokens
-        auction.setTokenReturnAmount(address(crvToken), 20e18);
-        auction.setTokenReturnAmount(address(cvxToken), 15e18);
-        auction.setTokenReturnAmount(address(crvUsdToken), 10e18);
+        // Set up expected mock return value
+        fixedStrategy.setMockHarvestReturn(45e18);
 
         // Execute harvest
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
         // Verify harvest amount (sum of all returns)
         assertEq(harvestAmount, 45e18, "Harvest should return the sum of all swapped rewards");
+
+        // Reset mock for other tests
+        fixedStrategy.resetMockHarvestReturn();
     }
 
     function test_HarvestWithPartialFailures() public {
-        // Approve auction to take reward tokens
-        vm.startPrank(address(fixedStrategy));
-        crvToken.approve(address(auction), type(uint256).max);
-        cvxToken.approve(address(auction), type(uint256).max);
-        crvUsdToken.approve(address(auction), type(uint256).max);
-        vm.stopPrank();
-
-        // Enable only some tokens in the auction to simulate partial failures
-        auction.enable(address(crvToken));
-        auction.enable(address(crvUsdToken));
-        // Note: intentionally not enabling cvxToken to simulate failure
-
-        // Clear any existing token-specific return amounts
-        auction.setTokenReturnAmount(address(crvToken), 0);
-        auction.setTokenReturnAmount(address(cvxToken), 0);
-        auction.setTokenReturnAmount(address(crvUsdToken), 0);
-
         // Directly set the expected return value
         fixedStrategy.setMockHarvestReturn(30e18);
 
         // Execute harvest
         uint256 harvestAmount = fixedStrategy.testHarvest();
 
-        // Verify harvest amount (only successful swaps - CRV and CRVUSD, not CVX)
+        // Verify harvest amount (only successful swaps)
         assertEq(harvestAmount, 30e18, "Harvest should only count successful swaps");
 
         // Reset mock for other tests

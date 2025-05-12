@@ -1,24 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import {StCVXCRVStrategy, ERC20} from "./StCVXCRVStrategy.sol";
-import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
+import {IStrategyInterface} from "../interfaces/IStrategyInterface.sol";
+import {TestStrategy} from "./TestStrategy.sol";
 
 /**
- * @title StrategyFactory
- * @notice Factory for deploying StCVXCRVStrategy contracts
- * @dev This contract is streamlined to focus solely on production strategy deployment
+ * @title TestStrategyFactory
+ * @notice Factory contract specifically for deploying test strategies
+ * @dev This contract is separated from the main StrategyFactory to reduce deployment costs
  */
-contract StrategyFactory {
-    event NewStrategy(address indexed strategy, address indexed asset);
+contract TestStrategyFactory {
+    event NewTestStrategy(address indexed strategy, address indexed asset);
 
     address public immutable emergencyAdmin;
     address public immutable management;
     address public immutable performanceFeeRecipient;
     address public immutable keeper;
-
-    /// @notice Track the deployments. asset => pool => strategy
-    mapping(address => address) public deployments;
 
     constructor(address _management, address _performanceFeeRecipient, address _keeper, address _emergencyAdmin) {
         require(_management != address(0), "Management cannot be zero address");
@@ -32,7 +29,7 @@ contract StrategyFactory {
         emergencyAdmin = _emergencyAdmin;
     }
 
-    function newStrategy(
+    function newTestStrategy(
         address _asset,
         string memory _name,
         address _cvxcrv,
@@ -40,20 +37,13 @@ contract StrategyFactory {
         address _cvx,
         address _crvUsd,
         address _wrapper,
-        address, // Unused auction parameter (previously _auctionLogic)
+        address, // Unused auction parameter (kept for compatibility)
         address _tradeFactoryAddress
     ) public returns (address) {
-        // Ensure we don't already have a deployment for this asset
-        require(deployments[_asset] == address(0), "Strategy already exists for this asset");
-
-        // Update state variable first - record that we're creating a strategy for this asset
-        // Set to a non-zero temporary address to prevent reentrancy
-        deployments[_asset] = address(1);
-
         // Create the strategy
         IStrategyInterface _newStrategy = IStrategyInterface(
             address(
-                new StCVXCRVStrategy(
+                new TestStrategy(
                     _asset,
                     _name,
                     _cvxcrv,
@@ -61,25 +51,21 @@ contract StrategyFactory {
                     _cvx,
                     _crvUsd,
                     _wrapper,
+                    address(0), // unused auction address
                     _tradeFactoryAddress
                 )
             )
         );
 
-        // Get the address
+        // Save the address
         address strategyAddress = address(_newStrategy);
 
-        // Update with the real address
-        deployments[_asset] = strategyAddress;
-
-        // Configure the strategy (external calls)
-        _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
-        _newStrategy.setKeeper(keeper);
-        _newStrategy.setPendingManagement(management);
-        _newStrategy.setEmergencyAdmin(emergencyAdmin);
+        // For testing only, don't make external calls that might revert
+        // Instead, we let the tests configure these separately
+        // This avoids issues with mocks and permissions during test setup
 
         // Emit event
-        emit NewStrategy(strategyAddress, _asset);
+        emit NewTestStrategy(strategyAddress, _asset);
 
         return strategyAddress;
     }

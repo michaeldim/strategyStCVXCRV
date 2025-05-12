@@ -7,10 +7,10 @@ import {ExtendedTest} from "./ExtendedTest.sol";
 import {ERC20} from "../../StCVXCRVStrategy.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {ICvxCrvStakingWrapper} from "../../interfaces/ICvxCrvStakingWrapper.sol";
-import {MockAuction} from "./MockAuction.sol"; // Corrected path
 import {MockTradeFactory} from "./MockTradeFactory.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StrategyFactory} from "../../StrategyFactory.sol";
+import {TestStrategyFactory} from "../TestStrategyFactory.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
 import {ITokenizedStrategy} from "../../../lib/tokenized-strategy/src/interfaces/ITokenizedStrategy.sol";
 
@@ -19,19 +19,17 @@ import {IEvents} from "../../../lib/tokenized-strategy/src/interfaces/IEvents.so
 
 interface IFactory {
     function governance() external view returns (address);
-
     function set_protocol_fee_bps(uint16) external;
-
     function set_protocol_fee_recipient(address) external;
 }
 
-contract Setup is ExtendedTest, IEvents {
+abstract contract Setup is ExtendedTest, IEvents {
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
     IStrategyInterface public strategy;
-    MockAuction public mockAuction; // Added for the deployed MockAuction instance
 
     StrategyFactory public strategyFactory;
+    TestStrategyFactory public testStrategyFactory;
 
     mapping(string => address) public tokenAddrs;
 
@@ -56,6 +54,9 @@ contract Setup is ExtendedTest, IEvents {
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
 
+    // Flag to control whether to create a strategy in setUp
+    bool public shouldCreateStrategy = true;
+
     function setUp() public virtual {
         // DEBUG: Step 1
         emit log("Setup: Step 1 - Start setUp");
@@ -65,12 +66,6 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["CVXCRV"] = address(mockCvxCrv);
         asset = ERC20(address(mockCvxCrv));
         emit log("Setup: Step 3 - After MockERC20 deploy");
-
-        // Deploy MockAuction
-        emit log("Setup: Step 6 - Deploying MockAuction");
-        address cvxCrvAddr = address(mockCvxCrv); // Define cvxCrvAddr before use
-        mockAuction = new MockAuction(cvxCrvAddr); // Pass cvxCrvAddr to constructor
-        emit log_named_address("Setup: Step 7 - MockAuction deployed at", address(mockAuction));
 
         // Mock CvxCrvStakingWrapper calls
         address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
@@ -90,16 +85,6 @@ contract Setup is ExtendedTest, IEvents {
         // Mock wrapper.isShutdown to return false
         vm.mockCall(wrapper, abi.encodeWithSignature("isShutdown()"), abi.encode(false));
 
-        // Mock AuctionFactory.createNewAuction to return the mock auction address
-        emit log("Setup: Step 12 - Before auctionFactory mock");
-        address auctionFactory = 0xCfA510188884F199fcC6e750764FAAbE6e56ec40;
-        vm.mockCall(
-            auctionFactory,
-            abi.encodeWithSelector(bytes4(keccak256("createNewAuction(address,address,address,uint256,uint256)"))),
-            abi.encode(address(mockAuction)) // Use the deployed mockAuction address
-        );
-        emit log("Setup: Step 13 - After auctionFactory mock");
-
         // Mock token balances and transfers for the hard-coded token addresses
         address CRV = 0xD533a949740bb3306d119CC777fa900bA034cd52;
         address CVX = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
@@ -108,53 +93,29 @@ contract Setup is ExtendedTest, IEvents {
 
         // Mock balanceOf for all reward tokens to return 0
         vm.mockCall(CRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
-
         vm.mockCall(CVX, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
-
         vm.mockCall(CRVUSD, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
-
         vm.mockCall(CVXCRV, abi.encodeWithSignature("balanceOf(address)"), abi.encode(uint256(0)));
 
         // Mock transfer to always succeed
         vm.mockCall(CRV, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
-
         vm.mockCall(CVX, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
-
         vm.mockCall(CRVUSD, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
-
         vm.mockCall(CVXCRV, abi.encodeWithSignature("transfer(address,uint256)"), abi.encode(true));
 
         // Mock safeTransfer to always succeed
         vm.mockCall(CRV, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
-
         vm.mockCall(CVX, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
-
         vm.mockCall(CRVUSD, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
-
         vm.mockCall(CVXCRV, abi.encodeWithSignature("safeTransfer(address,uint256)"), abi.encode());
 
-        emit log("Setup: Step 14 - Skipping _setTokenAddrs");
-        // _setTokenAddrs(); // Removed as token addresses are handled directly
-        emit log("Setup: Step 15 - After skipping _setTokenAddrs");
-        // asset and tokenAddrs["CVXCRV"] already set to mockCvxCrv above
-
         // Mock CVXCRV.decimals() to return 18 (prevents revert in Foundry tests)
-        emit log("Setup: Step 18 - Before decimals mock");
         vm.mockCall(tokenAddrs["CVXCRV"], abi.encodeWithSignature("decimals()"), abi.encode(uint8(18)));
-        emit log("Setup: Step 19 - After decimals mock");
 
-        // Mock CVXCRV.allowance() for any arguments to always return 0 (prevents SafeERC20 revert in tests)
-        emit log("Setup: Step 20 - Before allowance mock");
+        // Mock CVXCRV.allowance() and approve()
         vm.mockCall(tokenAddrs["CVXCRV"], abi.encodeWithSelector(IERC20.allowance.selector), abi.encode(uint256(0)));
-        emit log("Setup: Step 21 - After allowance mock");
-
-        // Also mock allowance for address(asset) in case it's different from tokenAddrs["CVXCRV"]
         vm.mockCall(address(asset), abi.encodeWithSelector(IERC20.allowance.selector), abi.encode(uint256(0)));
-
-        // Mock CVXCRV.approve() for any arguments to always return true (prevents SafeERC20 revert in tests)
-        emit log("Setup: Step 22 - Before approve mock");
         vm.mockCall(tokenAddrs["CVXCRV"], abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
-        emit log("Setup: Step 23 - After approve mock");
 
         // Set decimals
         emit log("Setup: Step 24 - Before decimals assignment");
@@ -163,50 +124,50 @@ contract Setup is ExtendedTest, IEvents {
 
         emit log("Setup: Step 26 - Before strategyFactory");
         strategyFactory = new StrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin);
+        testStrategyFactory = new TestStrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin);
         emit log("Setup: Step 27 - After strategyFactory");
 
-        // Deploy strategy and set variables
-        emit log("Setup: Step 28 - Before setUpStrategy");
-        strategy = IStrategyInterface(setUpStrategy());
-        emit log("Setup: Step 29 - After setUpStrategy");
+        // Set factory address regardless of creating a strategy
+        factory = address(testStrategyFactory);
 
-        emit log("Setup: Step 30 - Before FACTORY assignment");
-        // Defensive mock for FACTORY() if needed
-        vm.mockCall(address(strategy), abi.encodeWithSignature("FACTORY()"), abi.encode(address(strategyFactory)));
-        factory = strategy.FACTORY();
-        emit log("Setup: Step 31 - After FACTORY assignment");
-
-        // label all the used addresses for traces
-        emit log("Setup: Step 32 - Before vm.label");
+        // Label common addresses regardless of creating a strategy
         vm.label(keeper, "keeper");
         vm.label(factory, "factory");
         vm.label(address(asset), "asset");
         vm.label(management, "management");
-        vm.label(address(strategy), "strategy");
         vm.label(performanceFeeRecipient, "performanceFeeRecipient");
-        emit log("Setup: Step 33 - After vm.label");
 
-        // --- Patch: Mock factory.governance() to return management address ---
-        // This prevents reverts in tests that call factory.governance()
+        // Mock common factory functions regardless of creating a strategy
         vm.mockCall(
-            address(strategyFactory),
+            address(testStrategyFactory),
             abi.encodeWithSelector(IFactory.governance.selector),
             abi.encode(management)
         );
-
-        // Patch: Mock factory.set_protocol_fee_recipient(address) to always succeed
         vm.mockCall(
-            address(strategyFactory),
+            address(testStrategyFactory),
             abi.encodeWithSelector(IFactory.set_protocol_fee_recipient.selector, management),
             ""
         );
-
-        // Patch: Mock factory.set_protocol_fee_bps(uint16) to always succeed
         vm.mockCall(
-            address(strategyFactory),
+            address(testStrategyFactory),
             abi.encodeWithSelector(IFactory.set_protocol_fee_bps.selector, uint16(0)),
             ""
         );
+
+        // Deploy strategy and set variables - only if the flag is set
+        if (shouldCreateStrategy) {
+            emit log("Setup: Step 28 - Before setUpStrategy");
+            strategy = IStrategyInterface(setUpStrategy());
+            emit log("Setup: Step 29 - After setUpStrategy");
+
+            emit log("Setup: Step 30 - Before FACTORY assignment");
+            // Defensive mock for FACTORY() if needed
+            vm.mockCall(address(strategy), abi.encodeWithSignature("FACTORY()"), abi.encode(address(testStrategyFactory)));
+            emit log("Setup: Step 31 - After FACTORY assignment");
+
+            // Label strategy address
+            vm.label(address(strategy), "strategy");
+        }
     }
 
     function setUpStrategy() public returns (address) {
@@ -220,7 +181,7 @@ contract Setup is ExtendedTest, IEvents {
         address WRAPPER = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
         IStrategyInterface _strategy = IStrategyInterface(
             address(
-                strategyFactory.newTestStrategy(
+                testStrategyFactory.newTestStrategy(
                     address(asset),
                     "Tokenized Strategy",
                     CVXCRV,
@@ -228,7 +189,7 @@ contract Setup is ExtendedTest, IEvents {
                     CVX,
                     CRVUSD,
                     WRAPPER,
-                    address(0), // _providedAuctionAddress - will be set later via setAuction
+                    address(0), // _providedAuctionAddress - unused but kept for compatibility
                     address(0) // _tradeFactoryAddress - will be set later
                 )
             )
@@ -268,19 +229,12 @@ contract Setup is ExtendedTest, IEvents {
         _strategy.setProfitMaxUnlockTime(profitMaxUnlockTime);
         emit log_string("setUpStrategy: Profit max unlock time set");
 
-        // Set up mock auction and trade factory
-        emit log_string("setUpStrategy: Setting up mock auction (using the one from Setup.sol)");
-        // mockAuction is already deployed and initialized in Setup.sol's setUp function
+        // Set up mock trade factory
         emit log_string("setUpStrategy: Creating mock trade factory");
         MockTradeFactory tradeFactory = new MockTradeFactory();
         emit log_string("setUpStrategy: Mock trade factory created");
 
-        // Set auction and trade factory addresses
-        emit log_string("setUpStrategy: Setting auction");
-        vm.prank(management);
-        _strategy.setAuction(address(mockAuction)); // Use the mockAuction instance from Setup
-        emit log_string("setUpStrategy: Auction set");
-
+        // Set trade factory address
         emit log_string("setUpStrategy: Setting trade factory");
         vm.prank(management);
         _strategy.setTradeFactory(address(tradeFactory));
@@ -288,15 +242,6 @@ contract Setup is ExtendedTest, IEvents {
 
         // Constants needed for enabling routes
         // (already declared above)
-
-        // Enable auction routes
-        emit log_string("setUpStrategy: Enabling auction routes");
-        vm.startPrank(management);
-        _strategy.enableAuctionRoute(CRV, CVXCRV);
-        _strategy.enableAuctionRoute(CVX, CVXCRV);
-        _strategy.enableAuctionRoute(CRVUSD, CVXCRV);
-        vm.stopPrank();
-        emit log_string("setUpStrategy: Auction routes enabled");
 
         // Enable trade factory routes
         emit log_string("setUpStrategy: Enabling trade factory routes");

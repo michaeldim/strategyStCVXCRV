@@ -5,6 +5,7 @@ import "../StCVXCRVStrategy.sol";
 
 /// @notice Test-only subclass to expose internal harvest logic for testing
 contract TestStrategy is StCVXCRVStrategy {
+    // Mock boolean flags to control behavior
     bool public mockIsShutdown = false;
     bool public mockIsKeeper = false;
 
@@ -16,7 +17,7 @@ contract TestStrategy is StCVXCRVStrategy {
         address _cvx,
         address _crvUsd,
         address _wrapperAddress,
-        address _providedAuctionAddress,
+        address _providedAuctionAddress, // Unused in parent constructor but kept for testing compatibility
         address _tradeFactoryAddress
     )
         StCVXCRVStrategy(
@@ -27,10 +28,14 @@ contract TestStrategy is StCVXCRVStrategy {
             _cvx,
             _crvUsd,
             _wrapperAddress,
-            _providedAuctionAddress,
             _tradeFactoryAddress
         )
     {}
+
+    // Helper to identify this as a test contract
+    function isMock() external pure returns (bool) {
+        return true;
+    }
 
     function setMockShutdown(bool _isShutdown) external {
         mockIsShutdown = _isShutdown;
@@ -105,20 +110,17 @@ contract TestStrategy is StCVXCRVStrategy {
 
     // Special version to test early return in _sellRewards
     function testSellRewardsWithNoMechanisms() external {
-        // Save the current settings
-        bool originalUseTradeFactory = useTradeFactory;
-        bool originalUseAuction = useAuction;
+        // Save the current trade factory address
+        address originalTradeFactory = tradeFactory();
 
-        // Disable both mechanisms to test the early return
-        useTradeFactory = false;
-        useAuction = false;
+        // Set tradeFactory to zero address to test early return
+        _setTradeFactory(address(0), CVXCRV);
 
         // Call the function - should hit early return
         _sellRewards();
 
         // Restore original settings
-        useTradeFactory = originalUseTradeFactory;
-        useAuction = originalUseAuction;
+        _setTradeFactory(originalTradeFactory, CVXCRV);
     }
 
     function testClaimRewards() external {
@@ -127,21 +129,6 @@ contract TestStrategy is StCVXCRVStrategy {
 
     function testEmergencyWithdraw(uint256 _amount) external {
         _emergencyWithdraw(_amount);
-    }
-
-    function testProcessAuctions(address[] memory _tokens, uint256 _count) external {
-        _processAuctions(_tokens, _count);
-    }
-
-    function testSetupTrades(
-        address _tf,
-        address[] memory _tradeTokens,
-        uint256 _tradeCount,
-        address[] memory _auctionTokens,
-        uint256 _auctionCount,
-        bool _hasAuction
-    ) external {
-        _setupTrades(_tf, _tradeTokens, _tradeCount, _auctionTokens, _auctionCount, _hasAuction);
     }
 
     function testEnableTradesInBatch(address _tf, address[] memory _tokens, uint256 _count) external {
