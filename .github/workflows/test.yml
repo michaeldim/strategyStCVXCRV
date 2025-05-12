@@ -3,8 +3,8 @@ name: test
 on:
   push:
     branches:
-    - master
-    - develop
+      - master
+      - develop
   pull_request:
 
 env:
@@ -27,6 +27,17 @@ jobs:
         with:
           version: nightly
 
+      - name: Debug ETH_RPC_URL
+        run: |
+          if [ -z "$ETH_RPC_URL" ]; then
+            echo "ETH_RPC_URL is not set"
+            exit 1
+          else
+            echo "ETH_RPC_URL is set"
+          fi
+        env:
+          ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+
       - name: Run Forge build
         run: |
           forge --version
@@ -35,5 +46,6 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -vvv --fork-url ${{ secrets.ETH_RPC_URL }}
+          export ETH_RPC_URL=${{ secrets.ETH_RPC_URL }}
+          forge test -vvv --fork-url $ETH_RPC_URL
         id: test
