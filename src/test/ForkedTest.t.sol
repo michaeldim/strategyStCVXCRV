@@ -558,8 +558,6 @@ contract ForkedTest is Test {
         // This test doesn't require forking, so it will always work in CI
         console.log("Running CI-compatible test for ForkedTest.t.sol");
 
-        // Create a mock strategy address
-        address mockStrategy = makeAddr("mockStrategy");
 
         // Do some basic assertions that don't need RPC
         assertTrue(true, "CI-compatible test passes");
