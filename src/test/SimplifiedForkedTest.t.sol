@@ -19,7 +19,7 @@ contract SimplifiedForkedTest is Test {
 
     function setUp() public {
         // Fork Ethereum mainnet
-        string memory rpcUrl = vm.envOr("ETH_RPC_URL", string("https://eth-mainnet.alchemyapi.io/v2/demo"));
+        string memory rpcUrl = vm.envString("ETH_RPC_URL");
         vm.createSelectFork(rpcUrl);
         console.log("=== Simplified Forked Mainnet Test ===");
     }

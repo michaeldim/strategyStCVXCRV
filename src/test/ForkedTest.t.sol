@@ -137,7 +137,7 @@ contract ForkedTest is Test {
 
     // Separate function to attempt forking that can be called with try/catch
     function attemptFork() external returns (bool) {
-        string memory rpcUrl = vm.envOr("ETH_RPC_URL", string("https://eth-mainnet.g.alchemy.com/v2/demo"));
+        string memory rpcUrl = vm.envString("ETH_RPC_URL");
         vm.createSelectFork(rpcUrl);
         return true; // If we get here, fork was successful
     }
