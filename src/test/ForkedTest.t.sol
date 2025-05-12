@@ -359,7 +359,7 @@ contract ForkedTest is Test {
                 console.logUint(earned);
             } catch Error(string memory reason) {
                 console.log("Error calling wrapper earned:", reason);
-            } catch (bytes memory lowLevelData) {
+            } catch (bytes memory /* lowLevelData */) {
                 console.log("Low level error calling wrapper earned");
             }
 
@@ -383,13 +383,13 @@ contract ForkedTest is Test {
                     uint256(mainReward + extraReward1 + extraReward2));
             } catch Error(string memory reason) {
                 console.log("Error checking all wrapper rewards:", reason);
-            } catch (bytes memory lowLevelData) {
+            } catch (bytes memory /* lowLevelData */) {
                 console.log("Low level error checking wrapper rewards");
             }
 
         } catch Error(string memory reason) {
             console.log("Deposit failed with reason:", reason);
-        } catch (bytes memory lowLevelData) {
+        } catch (bytes memory /* lowLevelData */) {
             console.log("Deposit failed with unknown reason");
         }
         vm.stopPrank();
@@ -445,13 +445,14 @@ contract ForkedTest is Test {
                 console.logUint(IERC20(CVXCRV).balanceOf(address(strategy)) + IERC20(WRAPPER).balanceOf(address(strategy)));
             } catch Error(string memory reason) {
                 console.log("Second harvest error:", reason);
-            } catch (bytes memory lowLevelData) {
+            } catch (bytes memory /* lowLevelData */) {
                 console.log("Unknown second harvest error");
             }
         } catch Error(string memory reason) {
             console.log("Harvest error:", reason);
             revert(reason);
         } catch (bytes memory lowLevelData) {
+            // Keep the parameter for logging the bytes
             console.log("Unknown harvest error:");
             console.logBytes(lowLevelData);
             revert("Unknown harvest error");
