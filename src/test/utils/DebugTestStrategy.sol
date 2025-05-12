@@ -5,7 +5,6 @@ import {StCVXCRVStrategy} from "../../StCVXCRVStrategy.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.sol";
-import {Auction} from "@periphery/Auctions/Auction.sol";
 
 contract DebugTestStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
@@ -29,7 +28,6 @@ contract DebugTestStrategy is StCVXCRVStrategy {
             _cvx,
             _crvUsd,
             _wrapperAddress,
-            _providedAuctionAddress,
             _tradeFactoryAddress
         )
     {}
@@ -124,12 +122,6 @@ contract DebugTestStrategy is StCVXCRVStrategy {
         address tf = tradeFactory();
         console.log("  _doSellRewards: Trade factory address:");
         console.log(tf);
-        console.log("  _doSellRewards: useAuction flag:");
-        console.log(useAuction);
-        console.log("  _doSellRewards: auction contract address:");
-        console.log(auction);
-        console.log("  _doSellRewards: useTradeFactory flag:");
-        console.log(useTradeFactory);
 
         for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
             address rewardToken = strategyRewardTokens[i];
@@ -151,11 +143,8 @@ contract DebugTestStrategy is StCVXCRVStrategy {
             console.logUint(minSell);
 
             if (balance > minSell) {
-                console.log("    Balance exceeds minimum, attempting to sell/auction.");
-                if (useAuction && auction != address(0)) {
-                    console.log("    Using auction. Calling _doKickAuction.");
-                    _doKickAuction(rewardToken);
-                } else if (useTradeFactory && tf != address(0)) {
+                console.log("    Balance exceeds minimum, attempting to sell.");
+                if (tf != address(0)) {
                     console.log("    Using trade factory. Enabling trade.");
                     try ITradeFactory(tf).enable(rewardToken, CVXCRV) {
                         console.log("    ITradeFactory.enable succeeded.");
@@ -167,60 +156,12 @@ contract DebugTestStrategy is StCVXCRVStrategy {
                         console.logBytes(reasonBytes);
                     }
                 } else {
-                    console.log("    No selling mechanism (auction/trade factory) is enabled or configured.");
+                    console.log("    No selling mechanism (trade factory) is enabled or configured.");
                 }
             } else {
                 console.log("    Balance does not exceed minimum, no selling.");
             }
         }
         console.log("  _doSellRewards: Finished processing reward tokens.");
-    }
-
-    function _doKickAuction(address _token) internal {
-        console.log("    _doKickAuction for token:");
-        console.log(_token);
-        uint256 balanceToKick;
-        try IERC20(_token).balanceOf(address(this)) returns (uint256 bal) {
-            balanceToKick = bal;
-        } catch {
-            console.log("      ERROR: balanceOf for kick reverted");
-            return;
-        }
-
-        if (balanceToKick > 0) {
-            console.log("      Approving and transferring to auction, then kicking.");
-            try IERC20(_token).approve(auction, balanceToKick) {
-                try IERC20(_token).transfer(auction, balanceToKick) returns (bool success) {
-                    if (success) {
-                        try Auction(auction).kick(_token) returns (uint256 id) {
-                            console.log("      Kick succeeded with ID:");
-                            console.logUint(id);
-                        } catch Error(string memory reason) {
-                            console.log("    ERROR: Auction.kick reverted with reason:");
-                            console.log(reason);
-                        } catch (bytes memory reasonBytes) {
-                            console.log("    ERROR: Auction.kick reverted with unknown reason (bytes):");
-                            console.logBytes(reasonBytes);
-                        }
-                    } else {
-                        console.log("      WARNING: Transfer to auction failed.");
-                    }
-                } catch Error(string memory reason) {
-                    console.log("    ERROR: IERC20.transfer to auction reverted with reason:");
-                    console.log(reason);
-                } catch (bytes memory reasonBytes) {
-                    console.log("    ERROR: IERC20.transfer to auction reverted with unknown reason (bytes):");
-                    console.logBytes(reasonBytes);
-                }
-            } catch Error(string memory reason) {
-                console.log("    ERROR: IERC20.approve for auction reverted with reason:");
-                console.log(reason);
-            } catch (bytes memory reasonBytes) {
-                console.log("    ERROR: IERC20.approve for auction reverted with unknown reason (bytes):");
-                console.logBytes(reasonBytes);
-            }
-        } else {
-            console.log("      No balance to kick.");
-        }
     }
 }

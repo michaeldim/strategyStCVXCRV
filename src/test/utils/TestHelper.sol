@@ -8,7 +8,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 // Use the same import path as in Setup.sol
 import {ITokenizedStrategy} from "../../../lib/tokenized-strategy/src/interfaces/ITokenizedStrategy.sol";
 
-contract TestHelper is Setup {
+abstract contract TestHelper is Setup {
     /**
      * @notice Mock the balanceOf function for an ERC20 token to return a specific amount for a specific address
      * @dev This replaces the need for stdStorage.deal which is causing test failures
