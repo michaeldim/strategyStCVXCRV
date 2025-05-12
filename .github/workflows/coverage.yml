@@ -30,10 +30,10 @@ jobs:
         with:
           version: nightly
           
-      # Configure Foundry to ignore deploy size
+      # Configure Foundry to ignore deploy size (using environment variables)
       - name: Configure Foundry
         run: |
-          forge config --ignore-deploy-size true
+          # Already setting FOUNDRY_IGNORE_DEPLOY_SIZE in env
           forge config
           
       - name: Setup Node.js
