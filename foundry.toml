@@ -14,8 +14,8 @@ remappings = [
     "@periphery/=lib/tokenized-strategy-periphery/src/",
 ]
 
-# Fork settings with direct URL instead of environment variable
-fork-url = "https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY"
+# Fork settings using environment variable
+fork-url = "${ETH_RPC_URL}"
 # fork_block_number = 18977460
 
 # Additional configuration for testing
