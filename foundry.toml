@@ -14,8 +14,6 @@ remappings = [
     "@periphery/=lib/tokenized-strategy-periphery/src/",
 ]
 
-# Fork settings using environment variable
-fork-url = "${ETH_RPC_URL}"
 # fork_block_number = 18977460
 
 # Additional configuration for testing
@@ -27,6 +25,9 @@ ignore_deploy_size = true
 # Use proper management address from tests
 sender = '0xcDb15392B5BC692dE20B3a4E29190B4DD1d6c63d'
 tx_origin = '0xcDb15392B5BC692dE20B3a4E29190B4DD1d6c63d'
+
+[rpc_endpoints]
+mainnet = "${ETH_RPC_URL}"
 
 # CI profile specifically for GitHub Actions
 [profile.ci]
