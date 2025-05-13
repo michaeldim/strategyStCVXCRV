@@ -11,24 +11,11 @@ contract TestStrategy is StCVXCRVStrategy {
 
     constructor(
         address _asset,
-        string memory _name,
-        address _cvxcrv,
-        address _crv,
-        address _cvx,
-        address _crvUsd,
-        address _wrapperAddress,
-        address _providedAuctionAddress, // Unused in parent constructor but kept for testing compatibility
-        address _tradeFactoryAddress
+        string memory _name
     )
         StCVXCRVStrategy(
             _asset,
-            _name,
-            _cvxcrv,
-            _crv,
-            _cvx,
-            _crvUsd,
-            _wrapperAddress,
-            _tradeFactoryAddress
+            _name
         )
     {}
 
@@ -58,10 +45,55 @@ contract TestStrategy is StCVXCRVStrategy {
     function getAsset() external view returns (address) {
         return address(asset);
     }
+    
+    string private strategyName;
+
+    function getName() external view returns (string memory) {
+        // Use bytes to check string emptiness
+        bytes memory nameBytes = bytes(strategyName);
+        return nameBytes.length > 0 ? strategyName : "Test Strategy"; // Default to "Test Strategy" if name is not set
+    }
+    
+    // Allow tests to set the name explicitly
+    function setName(string memory _name) external {
+        strategyName = _name;
+    }
+    
+    // Implement report for testing
+    function report() external view returns (uint256) {
+        // Return the total assets for testing
+        uint256 total = this.totalAssets();
+        return total;
+    }
+    
+    // Implement totalAssets for testing
+    function totalAssets() external view returns (uint256) {
+        // Get balances to calculate total assets
+        address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
+        uint256 freeBalance = IERC20(address(asset)).balanceOf(address(this));
+        uint256 stakedBalance = ICvxCrvStakingWrapper(wrapper).balanceOf(address(this));
+        
+        // Return total assets
+        return freeBalance + stakedBalance;
+    }
+    
+    // Implement redeem for testing
+    function redeem(uint256 _shares, address _receiver, address) external returns (uint256) {
+        // Simplified implementation for testing
+        // Unstake if needed
+        _freeFunds(_shares);
+        
+        // Transfer assets to receiver
+        uint256 balance = IERC20(address(asset)).balanceOf(address(this));
+        uint256 toTransfer = balance > _shares ? _shares : balance;
+        IERC20(address(asset)).transfer(_receiver, toTransfer);
+        
+        return toTransfer;
+    }
 
     /// @notice Expose internal functions for testing
     function testClaimRewardsFromWrapper() external {
-        _claimRewardsFromWrapper();
+        _claimRewards();
     }
 
     function testFreeFunds(uint256 _amount) external {
@@ -100,10 +132,6 @@ contract TestStrategy is StCVXCRVStrategy {
         }
     }
 
-    function testHarvestAndReport() external returns (uint256) {
-        return _harvestAndReport();
-    }
-
     function testSellRewards() external {
         _sellRewards();
     }
@@ -114,13 +142,13 @@ contract TestStrategy is StCVXCRVStrategy {
         address originalTradeFactory = tradeFactory();
 
         // Set tradeFactory to zero address to test early return
-        _setTradeFactory(address(0), CVXCRV);
+        _setTradeFactory(address(0), address(asset));
 
         // Call the function - should hit early return
         _sellRewards();
 
         // Restore original settings
-        _setTradeFactory(originalTradeFactory, CVXCRV);
+        _setTradeFactory(originalTradeFactory, address(asset));
     }
 
     function testClaimRewards() external {
@@ -131,37 +159,13 @@ contract TestStrategy is StCVXCRVStrategy {
         _emergencyWithdraw(_amount);
     }
 
-    function testEnableTradesInBatch(address _tf, address[] memory _tokens, uint256 _count) external {
-        _enableTradesInBatch(_tf, _tokens, _count);
-    }
-
-    /// @notice Expose harvest for tests only - legacy version
+    /// @notice Expose harvest for tests only - uses the harvestAndReport method
     function testHarvest() external returns (uint256 profit) {
-        return _fixedHarvestAndReport();
+        return _harvestAndReport();
     }
-
-    /// @dev Modified version that doesn't use TokenizedStrategy.isShutdown()
-    function _fixedHarvestAndReport() internal returns (uint256 _totalAssets) {
-        if (!mockIsShutdown) {
-            _claimRewardsFromWrapper();
-        }
-
-        _sellRewards();
-
-        uint256 cvxCrvBal = IERC20(CVXCRV).balanceOf(address(this));
-        if (cvxCrvBal > 0 && !mockIsShutdown) {
-            try WRAPPER.stake(cvxCrvBal, address(this)) {
-                // Intentionally empty: continue if stake succeeds
-            } catch {
-                // Intentionally empty: continue if stake fails, funds remain in strategy
-            }
-        }
-
-        // Get balances to calculate total assets
-        uint256 freeBalance = IERC20(asset).balanceOf(address(this));
-        uint256 stakedBalance = WRAPPER.balanceOf(address(this));
-
-        // Return total assets
-        return freeBalance + stakedBalance;
+    
+    function testHarvestAndReport() external returns (uint256) {
+        uint256 assets = _harvestAndReport();
+        return assets;
     }
 }

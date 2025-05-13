@@ -150,4 +150,26 @@ abstract contract TestHelper is Setup {
     function mockPreviousTotalAssets(address _strategy, uint256 _value) internal {
         vm.mockCall(_strategy, abi.encodeWithSelector(bytes4(keccak256("previousTotalAssets()"))), abi.encode(_value));
     }
+    
+    /**
+     * @notice Mock the TokenizedStrategy.requireManagement function
+     * @dev This allows test contracts to pass the management check
+     * @param _strategy The strategy address
+     * @param _management The management address to allow
+     */
+    function mockRequireManagement(address _strategy, address _management) internal {
+        // Mock the requireManagement call to succeed for our test address
+        vm.mockCall(
+            _strategy,
+            abi.encodeWithSignature("requireManagement(address)", _management),
+            ""
+        );
+        
+        // Also mock the management() function to return our address
+        vm.mockCall(
+            _strategy,
+            abi.encodeWithSignature("management()"),
+            abi.encode(_management)
+        );
+    }
 }
