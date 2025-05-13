@@ -11,24 +11,11 @@ contract DebugTestStrategy is StCVXCRVStrategy {
 
     constructor(
         address _asset,
-        string memory _name,
-        address _cvxcrv,
-        address _crv,
-        address _cvx,
-        address _crvUsd,
-        address _wrapperAddress,
-        address _providedAuctionAddress,
-        address _tradeFactoryAddress
+        string memory _name
     )
         StCVXCRVStrategy(
             _asset,
-            _name,
-            _cvxcrv,
-            _crv,
-            _cvx,
-            _crvUsd,
-            _wrapperAddress,
-            _tradeFactoryAddress
+            _name
         )
     {}
 
@@ -55,7 +42,7 @@ contract DebugTestStrategy is StCVXCRVStrategy {
         _doSellRewards();
 
         uint256 cvxCrvBal;
-        try IERC20(CVXCRV).balanceOf(address(this)) returns (uint256 balance) {
+        try IERC20(address(asset)).balanceOf(address(this)) returns (uint256 balance) {
             cvxCrvBal = balance;
             console.log("DebugTestStrategy._harvestAndReport: CVXCRV balance in strategy =");
             console.logUint(cvxCrvBal);
@@ -66,7 +53,7 @@ contract DebugTestStrategy is StCVXCRVStrategy {
 
         if (cvxCrvBal > 0 && !mockIsShutdown) {
             console.log("DebugTestStrategy._harvestAndReport: Attempting to transfer CVXCRV to WRAPPER and stake");
-            try IERC20(CVXCRV).transfer(address(WRAPPER), cvxCrvBal) returns (bool success) {
+            try IERC20(address(asset)).transfer(address(WRAPPER), cvxCrvBal) returns (bool success) {
                 if (success) {
                     console.log("DebugTestStrategy._harvestAndReport: CVXCRV transfer to WRAPPER succeeded");
                     try WRAPPER.stake(cvxCrvBal, address(this)) {
@@ -138,7 +125,7 @@ contract DebugTestStrategy is StCVXCRVStrategy {
                 balance = 0;
             }
 
-            uint256 minSell = minAmountToSell[rewardToken];
+            uint256 minSell = minAmountToSellMapping[rewardToken];
             console.log("    Min amount to sell =");
             console.logUint(minSell);
 
@@ -146,7 +133,7 @@ contract DebugTestStrategy is StCVXCRVStrategy {
                 console.log("    Balance exceeds minimum, attempting to sell.");
                 if (tf != address(0)) {
                     console.log("    Using trade factory. Enabling trade.");
-                    try ITradeFactory(tf).enable(rewardToken, CVXCRV) {
+                    try ITradeFactory(tf).enable(rewardToken, address(asset)) {
                         console.log("    ITradeFactory.enable succeeded.");
                     } catch Error(string memory reason) {
                         console.log("    ERROR: ITradeFactory.enable failed with reason:");

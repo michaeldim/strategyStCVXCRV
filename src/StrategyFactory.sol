@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import {StCVXCRVStrategy, ERC20} from "./StCVXCRVStrategy.sol";
+import {StCVXCRVStrategy} from "./StCVXCRVStrategy.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
 
 /**
@@ -35,13 +36,13 @@ contract StrategyFactory {
     function newStrategy(
         address _asset,
         string memory _name,
-        address _cvxcrv,
-        address _crv,
-        address _cvx,
-        address _crvUsd,
-        address _wrapper,
+        address, // _cvxcrv (unused)
+        address, // _crv (unused)
+        address, // _cvx (unused)
+        address, // _crvUsd (unused)
+        address, // _wrapper (unused)
         address, // Unused auction parameter (previously _auctionLogic)
-        address _tradeFactoryAddress
+        address  // _tradeFactoryAddress (unused)
     ) public returns (address) {
         // Ensure we don't already have a deployment for this asset
         require(deployments[_asset] == address(0), "Strategy already exists for this asset");
@@ -55,13 +56,7 @@ contract StrategyFactory {
             address(
                 new StCVXCRVStrategy(
                     _asset,
-                    _name,
-                    _cvxcrv,
-                    _crv,
-                    _cvx,
-                    _crvUsd,
-                    _wrapper,
-                    _tradeFactoryAddress
+                    _name
                 )
             )
         );

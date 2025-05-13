@@ -32,27 +32,20 @@ contract TestStrategyFactory {
     function newTestStrategy(
         address _asset,
         string memory _name,
-        address _cvxcrv,
-        address _crv,
-        address _cvx,
-        address _crvUsd,
-        address _wrapper,
+        address, // _cvxcrv (unused)
+        address, // _crv (unused)
+        address, // _cvx (unused)
+        address, // _crvUsd (unused)
+        address, // _wrapper (unused)
         address, // Unused auction parameter (kept for compatibility)
-        address _tradeFactoryAddress
+        address  // _tradeFactoryAddress (unused)
     ) public returns (address) {
         // Create the strategy
         IStrategyInterface _newStrategy = IStrategyInterface(
             address(
                 new TestStrategy(
                     _asset,
-                    _name,
-                    _cvxcrv,
-                    _crv,
-                    _cvx,
-                    _crvUsd,
-                    _wrapper,
-                    address(0), // unused auction address
-                    _tradeFactoryAddress
+                    _name
                 )
             )
         );
