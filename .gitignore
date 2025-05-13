@@ -36,3 +36,6 @@ forge-coverage-report.md
 *.temp
 *.old
 
+# Notes and documentation
+NOTES*.md
+
