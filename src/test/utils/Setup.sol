@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 // import { console2 } from "forge-std/console2.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
-import {ERC20} from "../../StCVXCRVStrategy.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {ICvxCrvStakingWrapper} from "../../interfaces/ICvxCrvStakingWrapper.sol";
 import {MockTradeFactory} from "./MockTradeFactory.sol";
@@ -124,11 +124,13 @@ abstract contract Setup is ExtendedTest, IEvents {
 
         emit log("Setup: Step 26 - Before strategyFactory");
         strategyFactory = new StrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin);
-        testStrategyFactory = new TestStrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin);
         emit log("Setup: Step 27 - After strategyFactory");
 
-        // Set factory address regardless of creating a strategy
-        factory = address(testStrategyFactory);
+        // Initialize the TestStrategyFactory as well
+        testStrategyFactory = new TestStrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin);
+
+        // Set factory address
+        factory = address(strategyFactory);
 
         // Label common addresses regardless of creating a strategy
         vm.label(keeper, "keeper");

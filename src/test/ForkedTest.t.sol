@@ -18,35 +18,19 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
     uint256 public constant INITIAL_DEPOSIT = 100e18;
 
+    // Updated constructor to match the simplified StCVXCRVStrategy constructor
     constructor(
         address _asset,
-        string memory _name,
-        address _cvxcrv,
-        address _crv,
-        address _cvx,
-        address _crvUsd,
-        address _wrapperAddress,
-        address _tradeFactoryAddress
+        string memory _name
     )
         StCVXCRVStrategy(
             _asset,
-            _name,
-            _cvxcrv,
-            _crv,
-            _cvx,
-            _crvUsd,
-            _wrapperAddress,
-            _tradeFactoryAddress
+            _name
         )
     {}
 
-    // Add CVX to strategyRewardTokens for the test
-    // This function is no longer needed as CVX is already added in the main contract constructor
-    function fixRewardTokens() external {
-        // CVX is now already added in the constructor
-        // Previously: strategyRewardTokens.push(CVX);
-    }
-
+    // This function is no longer needed as we manually add reward tokens
+    // in the _setupAndTestStrategy function
     function setMockShutdown(bool _isShutdown) external {
         mockIsShutdown = _isShutdown;
     }
@@ -67,16 +51,16 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
         // Claim rewards from the staking wrapper
         WRAPPER.getReward(address(this));
 
-        // Process each reward token (CRV, CVX, etc.) using TradeFactory
+        // Process each reward token using TradeFactory
         address tf = tradeFactory();
         if (tf != address(0)) {
             for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
                 address token = strategyRewardTokens[i];
                 uint256 tokenBalance = IERC20(token).balanceOf(address(this));
 
-                if (tokenBalance > minAmountToSell[token]) {
+                if (tokenBalance > minAmountToSellMapping[token]) {
                     // Enable trade for the token
-                    try ITradeFactory(tf).enable(token, CVXCRV) {} catch {}
+                    try ITradeFactory(tf).enable(token, address(asset)) {} catch {}
                 }
             }
         }
@@ -208,19 +192,29 @@ contract ForkedTest is Test {
         vm.startPrank(management); // Start prank as management before deploying TestStrategy
         strategy = new ForkedFixedStrategy(
             CVXCRV, // asset
-            "Test Strategy", // name
-            CVXCRV, // cvxcrv
-            CRV, // crv
-            CVX, // cvx
-            CRVUSD, // crvUsd
-            WRAPPER, // real wrapper address
-            MOCK_TRADE_FACTORY // Using our mocked TradeFactory instead of the real one
+            "Test Strategy" // name
         );
 
         console.log("Strategy deployed at:", address(strategy));
 
         // Stop pranking after strategy deployment
         vm.stopPrank();
+
+        // Add reward tokens with their respective swap types
+        uint8 swapMethod = 1; // 1 = TradeFactory
+        vm.startPrank(management);
+        strategy.addRewardToken(CRV, swapMethod);
+        strategy.addRewardToken(CVX, swapMethod);
+        strategy.addRewardToken(CRVUSD, swapMethod);
+        vm.stopPrank();
+
+        console.log("Added CRV, CVX, and CRVUSD as reward tokens");
+
+        // Configure trade factory
+        vm.startPrank(management);
+        strategy.setTradeFactory(MOCK_TRADE_FACTORY);
+        vm.stopPrank();
+        console.log("Trade factory set to:", MOCK_TRADE_FACTORY);
 
         // Additional specific mocks for TradeFactory if needed
         // Note: We already mocked the generic enable function above

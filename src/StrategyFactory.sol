@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import {StCVXCRVStrategy, ERC20} from "./StCVXCRVStrategy.sol";
+import {StCVXCRVStrategy} from "./StCVXCRVStrategy.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
 
 /**
@@ -48,13 +49,7 @@ contract StrategyFactory {
             address(
                 new StCVXCRVStrategy(
                     _asset,
-                    _name,
-                    _cvxcrv,
-                    _crv,
-                    _cvx,
-                    _crvUsd,
-                    _wrapper,
-                    _tradeFactoryAddress
+                    _name
                 )
             )
         );
