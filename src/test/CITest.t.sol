@@ -27,7 +27,7 @@ contract CITest is Test {
         // Verify initialization
         assertTrue(strategy.getAsset() == address(asset), "Asset address should match");
         assertTrue(
-            keccak256(abi.encodePacked(strategy.getName())) == keccak256(abi.encodePacked("Test Strategy")), 
+            keccak256(abi.encodePacked(strategy.getName())) == keccak256(abi.encodePacked("Test Strategy")),
             "Strategy name should match"
         );
     }

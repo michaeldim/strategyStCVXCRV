@@ -45,7 +45,7 @@ contract TestStrategy is StCVXCRVStrategy {
     function getAsset() external view returns (address) {
         return address(asset);
     }
-    
+
     string private strategyName;
 
     function getName() external view returns (string memory) {
@@ -53,41 +53,41 @@ contract TestStrategy is StCVXCRVStrategy {
         bytes memory nameBytes = bytes(strategyName);
         return nameBytes.length > 0 ? strategyName : "Test Strategy"; // Default to "Test Strategy" if name is not set
     }
-    
+
     // Allow tests to set the name explicitly
     function setName(string memory _name) external {
         strategyName = _name;
     }
-    
+
     // Implement report for testing
     function report() external view returns (uint256) {
         // Return the total assets for testing
         uint256 total = this.totalAssets();
         return total;
     }
-    
+
     // Implement totalAssets for testing
     function totalAssets() external view returns (uint256) {
         // Get balances to calculate total assets
         address wrapper = 0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434;
         uint256 freeBalance = IERC20(address(asset)).balanceOf(address(this));
         uint256 stakedBalance = ICvxCrvStakingWrapper(wrapper).balanceOf(address(this));
-        
+
         // Return total assets
         return freeBalance + stakedBalance;
     }
-    
+
     // Implement redeem for testing
     function redeem(uint256 _shares, address _receiver, address) external returns (uint256) {
         // Simplified implementation for testing
         // Unstake if needed
         _freeFunds(_shares);
-        
+
         // Transfer assets to receiver
         uint256 balance = IERC20(address(asset)).balanceOf(address(this));
         uint256 toTransfer = balance > _shares ? _shares : balance;
         IERC20(address(asset)).transfer(_receiver, toTransfer);
-        
+
         return toTransfer;
     }
 
@@ -163,7 +163,7 @@ contract TestStrategy is StCVXCRVStrategy {
     function testHarvest() external returns (uint256 profit) {
         return _harvestAndReport();
     }
-    
+
     function testHarvestAndReport() external returns (uint256) {
         uint256 assets = _harvestAndReport();
         return assets;

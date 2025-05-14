@@ -23,6 +23,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract Strategy is BaseStrategy {
     using SafeERC20 for ERC20;
 
+    /// @notice Emitted when the strategy fails to withdraw funds from the wrapper
+    event WrapperWithdrawFailed(uint256 amount);
+
     constructor(
         address _asset,
         string memory _name
@@ -73,7 +76,9 @@ contract Strategy is BaseStrategy {
     function _freeFunds(uint256 _amount) internal override {
         // TODO: implement withdraw logic EX:
         //
-        //      lendingPool.withdraw(address(asset), _amount);
+        //      try WRAPPER.withdraw(_amount) {} catch {
+        //          emit WrapperWithdrawFailed(_amount);
+        //      }
     }
 
     /**

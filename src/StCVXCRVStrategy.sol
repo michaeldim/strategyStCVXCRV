@@ -11,221 +11,134 @@ import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.so
 import {IAuction} from "./interfaces/IAuction.sol";
 
 /**
- * @title cvxCRV Staking and Compounding Strategy
+ * @title Staked cvxCRV Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
- * @dev This strategy utilizes ICvxCrvStakingWrapper for yield. Inherits from BaseStrategy for safety
- *      and TradeFactorySwapper for direct DEX reward sales. Can also use auctions for selling rewards.
  */
 contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
     using SafeERC20 for IERC20;
 
-    // --- Swap Configuration ---
     enum SwapType {
-        NULL,       // Not configured for swapping
-        TRADE_FACTORY, // Use TradeFactory for swaps (default)
-        AUCTION     // Use Auction for swaps
+        NULL,
+        TRADE_FACTORY,
+        AUCTION
     }
 
     // --- Strategy state ---
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
 
     // --- Auction configuration ---
-    /// @notice Address of the specific Auction this strategy uses
-    address public auction; // Address of the Auction contract
-    mapping(address => SwapType) public swapType; // Token address => swap method
+    address public auction;
+    mapping(address => SwapType) public swapType;
 
     // --- Reward selling config ---
     mapping(address => uint256) public minAmountToSellMapping;
     address[] public strategyRewardTokens;
 
-    /*//////////////////////////////////////////////////////////////
-                          CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    // -----------------------------------------------------------------------
+    // Constructor
+    // -----------------------------------------------------------------------
 
     constructor(
         address _asset,
         string memory _name
     ) BaseStrategy(_asset, _name) {
-        // Set max approval for the wrapper to save gas on future deposits
         IERC20(address(asset)).safeApprove(address(WRAPPER), type(uint256).max);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                          VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    // -----------------------------------------------------------------------
+    // View Functions
+    // -----------------------------------------------------------------------
 
-    /// @notice Returns all reward tokens tracked by the strategy
+    /**
+     * @notice Returns all reward tokens tracked by the strategy
+     */
     function getAllRewardTokens() external view returns (address[] memory) {
         return strategyRewardTokens;
     }
 
+    // -----------------------------------------------------------------------
+    // Core Strategy Implementation
+    // -----------------------------------------------------------------------
 
-    /*//////////////////////////////////////////////////////////////
-                      REQUIRED OVERRIDES
-    //////////////////////////////////////////////////////////////*/
-
-    /// @dev Deploys up to '_amount' of asset in the yield source (stakes cvxCRV)
+    /**
+     * @dev Deploys up to '_amount' of asset in the yield source (stakes cvxCRV)
+     * @param _amount Amount of asset to stake
+     */
     function _deployFunds(uint256 _amount) internal override {
-        try WRAPPER.stake(_amount, address(this)) {
-            // Success
-        } catch Error(string memory reason) {
+        try WRAPPER.stake(_amount, address(this)) {} catch Error(string memory reason) {
             revert(reason);
         } catch (bytes memory) {
             revert("WRAPPER.stake low-level revert");
         }
     }
 
-    /// @dev Attempts to free '_amount' of asset (unstake cvxCRV)
+    /**
+     * @dev Attempts to free '_amount' of asset (unstake cvxCRV)
+     * @param _amount Amount of asset to unstake
+     */
     function _freeFunds(uint256 _amount) internal override {
         uint256 wrapperBalance = WRAPPER.balanceOf(address(this));
 
-        // Limit the amount to the available balance using Math.min
         _amount = Math.min(_amount, wrapperBalance);
 
         if (_amount > 0) {
-            try WRAPPER.withdraw(_amount) {
-                // Success
-            } catch {
-                // Continue if withdraw fails
-            }
+            try WRAPPER.withdraw(_amount) {} catch {}
         }
     }
 
-    /// @dev Core harvest function. Claims rewards, sells them for asset, and reinvests
+    /**
+     * @dev Core harvest function. Claims rewards, sells them for asset, and reinvests
+     * @return _totalAssets Total assets under management after harvest
+     */
     function _harvestAndReport() internal virtual override returns (uint256 _totalAssets) {
-        // Only claim rewards if not shutdown
         if (!TokenizedStrategy.isShutdown()) {
             _claimRewards();
         }
 
-        // Process rewards
         _sellRewards();
 
-        // Stake any available strategy asset, but only if not shutdown
         uint256 assetBal = IERC20(address(asset)).balanceOf(address(this));
         if (assetBal > 0 && !TokenizedStrategy.isShutdown()) {
-            // Safely stake, continue on failure
             try WRAPPER.stake(assetBal, address(this)) {} catch {}
         }
 
-        // Calculate total assets (liquid + staked)
         uint256 idleAssets = asset.balanceOf(address(this));
         uint256 stakedAssets = WRAPPER.balanceOf(address(this));
         _totalAssets = idleAssets + stakedAssets;
 
-        // Return total assets
         return _totalAssets;
     }
 
-    /// @dev Emergency withdrawal if strategy is shutdown
+    /**
+     * @dev Emergency withdrawal if strategy is shutdown
+     * @param _amount Amount of asset to withdraw
+     */
     function _emergencyWithdraw(uint256 _amount) internal override {
-        // First, check idle assets
         uint256 idleAssets = IERC20(address(asset)).balanceOf(address(this));
 
-        // If requested amount exceeds idle assets, attempt to unstake required difference
         if (_amount > idleAssets) {
             uint256 toUnstake = _amount - idleAssets;
 
-            // Use _freeFunds to handle the unstaking logic
             _freeFunds(toUnstake);
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                      INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @dev Claims rewards from the wrapper, with try/catch for safety
+    /**
+     * @dev Claims rewards from the wrapper, with try/catch for safety
+     */
     function _claimRewards() internal override {
-        try WRAPPER.getReward(address(this)) {
-            // Success
-        } catch {
-            // Continue if getReward fails
-        }
+        try WRAPPER.getReward(address(this)) {} catch {}
     }
 
+    // -----------------------------------------------------------------------
+    // Reward Management
+    // -----------------------------------------------------------------------
 
-
-    /// @dev Sells reward tokens that exceed minimum amounts
-    function _sellRewards() internal {
-        // Cache array length
-        uint256 rewardCount = strategyRewardTokens.length;
-
-        // Get TradeFactory address for DEX-based trades
-        address _tf = tradeFactory();
-
-        // Process each reward token according to its configured swap type
-        for (uint256 i = 0; i < rewardCount; i++) {
-            address reward = strategyRewardTokens[i];
-            uint256 balance = IERC20(reward).balanceOf(address(this));
-            uint256 minAmount = minAmountToSellMapping[reward];
-
-            // Skip tokens that don't meet the minimum amount
-            if (balance <= minAmount) continue;
-
-            // Determine which swap method to use
-            SwapType swapMethod = swapType[reward];
-
-            if (swapMethod == SwapType.AUCTION && auction != address(0)) {
-                // Use auction strategy
-                _kickAuction(reward);
-            }
-            else if (swapMethod == SwapType.TRADE_FACTORY && _tf != address(0)) {
-                // Use TradeFactory - no need to call enable again, just let it run
-                // TradeFactory will handle the swap based on our existing configuration
-            }
-            // If NULL or unsupported method or mechanism unavailable, do nothing
-        }
-    }
-
-    /// @dev Initiates an auction for a reward token
-    /// @param _token The token to be sold via auction
-    /// @return The auction address used
-    function _kickAuction(address _token) internal returns (address) {
-        require(_token != address(asset), "Cannot auction strategy asset");
-        require(auction != address(0), "No auction configured");
-
-        // Transfer tokens to the auction contract
-        uint256 balance = IERC20(_token).balanceOf(address(this));
-        if (balance > 0) {
-            IERC20(_token).safeTransfer(auction, balance);
-
-            // Start the auction
-            try IAuction(auction).kick(_token) {
-                // Auction started successfully
-            } catch {
-                // If auction fails, just continue
-            }
-        }
-
-        return auction;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                      EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /*//////////////////////////////////////////////////////////////
-                   MANAGEMENT (onlyManagement) FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// -----------------------------------------------------------------------
-    /// Staking Wrapper Configuration
-    /// -----------------------------------------------------------------------
-
-    /// @notice Set reward weight for staking wrapper
-    function setRewardWeight(uint256 _weight) external onlyManagement {
-        require(_weight <= 10000, "Weight must be <= 10000");
-        WRAPPER.setRewardWeight(_weight);
-    }
-
-    /// -----------------------------------------------------------------------
-    /// Reward Token Management
-    /// -----------------------------------------------------------------------
-
-    /// @notice Add a new reward token to the strategy
-    /// @param _token Address of the token to add
-    /// @param _swapType The swap method to use (must be TRADE_FACTORY or AUCTION)
+    /**
+     * @notice Add a new reward token to the strategy
+     * @param _token Address of the token to add
+     * @param _swapType The swap method to use (must be TRADE_FACTORY or AUCTION)
+     */
     function addRewardToken(
         address _token,
         uint8 _swapType
@@ -235,21 +148,16 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
             "Cannot use asset as reward token"
         );
 
-        // Make sure we haven't already set a swap type for this asset
         require(swapType[_token] == SwapType.NULL, "!exists");
 
-        // Shouldn't ever add an asset but set to null
         require(_swapType > 0, "!null");
 
-        // Convert uint8 to SwapType and validate
         require(_swapType <= uint8(SwapType.AUCTION), "Invalid swap type");
         SwapType method = SwapType(_swapType);
 
-        // Add to our tracking array
         strategyRewardTokens.push(_token);
         swapType[_token] = method;
 
-        // Enable on our trade factory
         if (method == SwapType.TRADE_FACTORY) {
             address tf = tradeFactory();
             if (tf != address(0)) {
@@ -258,8 +166,10 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
         }
     }
 
-    /// @notice Remove a reward token from the strategy
-    /// @param _token Address of the token to remove
+    /**
+     * @notice Remove a reward token from the strategy
+     * @param _token Address of the token to remove
+     */
     function removeRewardToken(address _token) external onlyManagement {
         address[] memory _allRewardTokens = strategyRewardTokens;
         uint256 _length = _allRewardTokens.length;
@@ -268,7 +178,6 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
 
         for (uint256 i = 0; i < _length; ++i) {
             if (_allRewardTokens[i] == _token) {
-                // Replace with the last element and pop
                 strategyRewardTokens[i] = _allRewardTokens[_length - 1];
                 strategyRewardTokens.pop();
                 found = true;
@@ -278,11 +187,9 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
 
         require(found, "Token not found");
 
-        // Clear token configuration
         delete swapType[_token];
         delete minAmountToSellMapping[_token];
 
-        // Disable on our trade factory
         if (_swapType == SwapType.TRADE_FACTORY) {
             address tf = tradeFactory();
             if (tf != address(0)) {
@@ -291,7 +198,10 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
         }
     }
 
-    /// @notice Claim rewards (optionally sell them) from the strategy
+    /**
+     * @notice Claim rewards (optionally sell them) from the strategy
+     * @param sell Whether to sell the claimed rewards
+     */
     function manualClaimRewards(bool sell) external onlyManagement {
         _claimRewards();
         if (sell) {
@@ -299,39 +209,85 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
         }
     }
 
-    /// -----------------------------------------------------------------------
-    /// TradeFactory Configuration
-    /// -----------------------------------------------------------------------
+    /**
+     * @notice Set minimum amount for a token to be considered for swapping
+     * @param _token Token address to configure
+     * @param _minAmount Minimum amount needed to trigger a swap
+     */
+    function setMinAmountToSellMapping(address _token, uint256 _minAmount) external onlyManagement {
+        minAmountToSellMapping[_token] = _minAmount;
+    }
 
-    /// @notice Set the address of the Trade Factory
+    // -----------------------------------------------------------------------
+    // Reward Selling
+    // -----------------------------------------------------------------------
+
+    /**
+     * @dev Sells reward tokens that exceed minimum amounts
+     */
+    function _sellRewards() internal {
+        uint256 rewardCount = strategyRewardTokens.length;
+
+        address _tf = tradeFactory();
+
+        for (uint256 i = 0; i < rewardCount; i++) {
+            address reward = strategyRewardTokens[i];
+            uint256 balance = IERC20(reward).balanceOf(address(this));
+            uint256 minAmount = minAmountToSellMapping[reward];
+
+            if (balance <= minAmount) continue;
+
+            SwapType swapMethod = swapType[reward];
+
+            if (swapMethod == SwapType.AUCTION && auction != address(0)) {
+                _kickAuction(reward);
+            }
+            else if (swapMethod == SwapType.TRADE_FACTORY && _tf != address(0)) {
+                // No immediate action needed - TradeFactory's off-chain keepers handle swaps
+            }
+        }
+    }
+
+    /**
+     * @notice Set the swap type for a specific token
+     * @param _token Token address to configure
+     * @param _swapType Swap method to use for this token
+     */
+    function setSwapType(address _token, SwapType _swapType) external onlyManagement {
+        swapType[_token] = _swapType;
+    }
+
+    // -----------------------------------------------------------------------
+    // TradeFactory Configuration
+    // -----------------------------------------------------------------------
+
+    /**
+     * @notice Set the address of the Trade Factory
+     * @param _tradeFactory Address of the new Trade Factory
+     */
     function setTradeFactory(address _tradeFactory) external onlyManagement {
         _setTradeFactory(_tradeFactory, address(asset));
     }
 
-    /// @notice Enable trade factory route for swapping a token to another
+    /**
+     * @notice Enable trade factory route for swapping a token to another
+     * @param _from Token to swap from
+     * @param _to Token to swap to
+     */
     function enableTradeFactoryRoute(address _from, address _to) external onlyManagement {
         _addToken(_from, _to);
     }
 
-    /// @notice Configure all reward tokens to use TradeFactory
-    function setAllTokensToTradeFactory() external onlyManagement {
-        address tf = tradeFactory();
-        require(tf != address(0), "No TradeFactory configured");
+    // -----------------------------------------------------------------------
+    // Auction Configuration
+    // -----------------------------------------------------------------------
 
-        uint256 rewardCount = strategyRewardTokens.length;
-        for (uint256 i = 0; i < rewardCount; i++) {
-            swapType[strategyRewardTokens[i]] = SwapType.TRADE_FACTORY;
-        }
-    }
-
-    /// -----------------------------------------------------------------------
-    /// Auction Configuration
-    /// -----------------------------------------------------------------------
-
-    /// @notice Set the auction address
+    /**
+     * @notice Set the auction address
+     * @param _auction Address of the new auction contract
+     */
     function setAuction(address _auction) external onlyManagement {
         if (_auction != address(0)) {
-            // Verify the auction contract is properly configured for this strategy
             require(IAuction(_auction).want() == address(asset), "Auction want must be asset");
             require(IAuction(_auction).receiver() == address(this), "Auction receiver must be strategy");
         }
@@ -339,46 +295,45 @@ contract StCVXCRVStrategy is BaseStrategy, TradeFactorySwapper {
         auction = _auction;
     }
 
-    /// @notice Configure all reward tokens to use auctions
-    function setAllTokensToAuction() external onlyManagement {
+    /**
+     * @dev Initiates an auction for a reward token
+     * @param _token The token to be sold via auction
+     * @return The auction address used
+     */
+    function _kickAuction(address _token) internal returns (address) {
+        require(_token != address(asset), "Cannot auction strategy asset");
         require(auction != address(0), "No auction configured");
 
-        uint256 rewardCount = strategyRewardTokens.length;
-        for (uint256 i = 0; i < rewardCount; i++) {
-            swapType[strategyRewardTokens[i]] = SwapType.AUCTION;
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        if (balance > 0) {
+            IERC20(_token).safeTransfer(auction, balance);
+
+            try IAuction(auction).kick(_token) {} catch {}
         }
+
+        return auction;
     }
 
-    /// -----------------------------------------------------------------------
-    /// Swap Configuration
-    /// -----------------------------------------------------------------------
-
-    /// @notice Set the swap type for a specific token
-    function setSwapType(address _token, SwapType _swapType) external onlyManagement {
-        swapType[_token] = _swapType;
-    }
-
-    /// @notice Set minimum amount for a token to be considered for swapping
-    function setMinAmountToSellMapping(address _token, uint256 _minAmount) external onlyManagement {
-        minAmountToSellMapping[_token] = _minAmount;
-    }
-
-    /// @notice Batch set minimum amounts for multiple tokens
-    function setMinAmountsToSellMapping(address[] calldata _tokens, uint256[] calldata _minAmounts) external onlyManagement {
-        require(_tokens.length == _minAmounts.length, "Arrays must be same length");
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            minAmountToSellMapping[_tokens[i]] = _minAmounts[i];
-        }
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                   KEEPER (onlyKeepers) FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Manually start an auction for a specific token
-    /// @return The auction address used
+    /**
+     * @notice Manually start an auction for a specific token
+     * @param _token Token to auction
+     * @return The auction address used
+     */
     function kickAuction(address _token) external onlyKeepers returns (address) {
         require(swapType[_token] == SwapType.AUCTION, "Token not configured for auction");
         return _kickAuction(_token);
+    }
+
+    // -----------------------------------------------------------------------
+    // Staking Wrapper Configuration
+    // -----------------------------------------------------------------------
+
+    /**
+     * @notice Set reward weight for staking wrapper
+     * @param _weight New weight to set (capped at 10000)
+     */
+    function setRewardWeight(uint256 _weight) external onlyManagement {
+        require(_weight <= 10000, "Weight must be <= 10000");
+        WRAPPER.setRewardWeight(_weight);
     }
 }
