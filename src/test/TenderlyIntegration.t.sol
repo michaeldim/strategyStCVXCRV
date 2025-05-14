@@ -44,7 +44,7 @@ contract TenderlyIntegrationTest is Test {
     
     // Governance/Management address - needed to add strategy to vault
     // This will be the new management address after management transfer
-    address constant revert("Environment variable BETA or GOVERNANCE_ADDRESS must be set");
+    address public GOVERNANCE_ADDRESS; // BETA
     
     // Reward token addresses
     address constant CRV_TOKEN_ADDRESS = 0xD533a949740bb3306d119CC777fa900bA034cd52; // CRV
@@ -82,10 +82,19 @@ contract TenderlyIntegrationTest is Test {
         }
         
         // Check if we're on Tenderly
-        string memory rpcUrl = vm.rpcUrl();
+        string memory rpcUrl = vm.envString("ETH_RPC_URL");
         if (bytes(rpcUrl).length == 0 || !contains(rpcUrl, "tenderly")) {
             console.log("Not running on Tenderly, skipping test");
             return;
+        }
+        
+        // Load address from environment variable
+        try vm.envAddress("BETA") returns (address addr) {
+            GOVERNANCE_ADDRESS = addr;
+            console.log("Loaded BETA address from environment:", GOVERNANCE_ADDRESS);
+        } catch {
+            // Fallback to hardcoded address if environment variable is not set
+            revert("Environment variable BETA or GOVERNANCE_ADDRESS must be set");
         }
         
         // Fund the deployer account
@@ -100,6 +109,7 @@ contract TenderlyIntegrationTest is Test {
         console.log("Vault name:", vault.name());
         console.log("Vault API version:", vault.apiVersion());
         console.log("Vault token:", vault.token());
+        console.log("Governance address:", GOVERNANCE_ADDRESS);
         console.log("Deployment account:", deployer);
     }
     
@@ -110,7 +120,7 @@ contract TenderlyIntegrationTest is Test {
             return;
         }
         
-        string memory rpcUrl = vm.rpcUrl();
+        string memory rpcUrl = vm.envString("ETH_RPC_URL");
         if (bytes(rpcUrl).length == 0 || !contains(rpcUrl, "tenderly")) {
             console.log("Not running on Tenderly, skipping test");
             return;
@@ -159,7 +169,10 @@ contract TenderlyIntegrationTest is Test {
         minAmounts[1] = 1 * 1e18; // Min 1 CVX to sell
         minAmounts[2] = 100 * 1e18; // Min 100 CRVUSD to sell
         
-        strategy.setMinAmountsToSellMapping(rewardTokens, minAmounts);
+        // Set minimum amounts for each token individually
+        for (uint i = 0; i < rewardTokens.length; i++) {
+            strategy.setMinAmountToSellMapping(rewardTokens[i], minAmounts[i]);
+        }
         console.log("Configured min amounts to sell");
         
         // STEP 4: Add Strategy to Vault

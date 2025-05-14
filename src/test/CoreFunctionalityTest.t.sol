@@ -24,7 +24,7 @@ contract CoreFunctionalityTest is Setup {
     function setUp() public override {
         // Disable strategy creation in parent
         shouldCreateStrategy = false;
-        
+
         // First call the base setup
         super.setUp();
 
@@ -47,7 +47,7 @@ contract CoreFunctionalityTest is Setup {
 
         // Configure test strategy
         vm.startPrank(management);
-        
+
         // Set the strategy name explicitly to match what we expect in the test
         testStrategy.setName("Generic Staking Strategy");
 
@@ -83,8 +83,8 @@ contract CoreFunctionalityTest is Setup {
         // Basic initialization checks
         assertEq(testStrategy.getAsset(), address(cvxCrv), "Asset should be cvxCRV");
         assertEq(
-            keccak256(abi.encodePacked(testStrategy.getName())), 
-            keccak256(abi.encodePacked("Generic Staking Strategy")), 
+            keccak256(abi.encodePacked(testStrategy.getName())),
+            keccak256(abi.encodePacked("Generic Staking Strategy")),
             "Strategy name should match"
         );
 

@@ -22,7 +22,7 @@ contract HarvestTests is Test {
         crvToken = new MockERC20("Curve DAO Token", "CRV", 18);
         cvxToken = new MockERC20("Convex Token", "CVX", 18);
         crvUsdToken = new MockERC20("Curve USD", "crvUSD", 18);
-        
+
         vm.label(address(this), "HarvestTests");
     }
 
@@ -41,7 +41,7 @@ contract HarvestTests is Test {
     function test_HarvestWithNoRewards() public view {
         // Test with zero balance
         uint256 balance = crvToken.balanceOf(address(this));
-        
+
         // This is valid since we're just looking at the current balance
         assertEq(balance, balance, "Balance should equal itself");
     }
@@ -49,7 +49,7 @@ contract HarvestTests is Test {
     function test_HarvestWhenShutdown() public pure {
         // Test with shutdown condition
         bool isShutdown = true;
-        
+
         // Simple test that succeeds
         assertTrue(isShutdown, "Should be in shutdown mode");
     }
@@ -61,7 +61,7 @@ contract HarvestTests is Test {
     function test_SimplifiedStrategyHarvest() public {
         // Mint tokens to simulate rewards
         cvxCrvToken.mint(address(this), 100e18);
-        
+
         // Verify mint succeeded
         assertEq(cvxCrvToken.balanceOf(address(this)), 100e18, "Minting succeeded");
     }
@@ -75,19 +75,19 @@ contract HarvestTests is Test {
         crvToken.mint(address(this), 20e18);
         cvxToken.mint(address(this), 15e18);
         crvUsdToken.mint(address(this), 10e18);
-        
+
         // Verify total rewards from all tokens
-        uint256 totalRewards = crvToken.balanceOf(address(this)) + 
-                              cvxToken.balanceOf(address(this)) + 
+        uint256 totalRewards = crvToken.balanceOf(address(this)) +
+                              cvxToken.balanceOf(address(this)) +
                               crvUsdToken.balanceOf(address(this));
-        
+
         assertEq(totalRewards, 45e18, "Total rewards should be 45e18");
     }
 
     function test_HarvestWithPartialFailures() public {
         // Mint tokens to simulate partial success
         crvToken.mint(address(this), 30e18);
-        
+
         // Verify the partial result is as expected
         assertEq(crvToken.balanceOf(address(this)), 30e18, "Partial rewards should be 30e18");
     }
