@@ -78,8 +78,8 @@ contract HarvestTests is Test {
 
         // Verify total rewards from all tokens
         uint256 totalRewards = crvToken.balanceOf(address(this)) +
-                              cvxToken.balanceOf(address(this)) +
-                              crvUsdToken.balanceOf(address(this));
+            cvxToken.balanceOf(address(this)) +
+            crvUsdToken.balanceOf(address(this));
 
         assertEq(totalRewards, 45e18, "Total rewards should be 45e18");
     }
@@ -91,5 +91,4 @@ contract HarvestTests is Test {
         // Verify the partial result is as expected
         assertEq(crvToken.balanceOf(address(this)), 30e18, "Partial rewards should be 30e18");
     }
-
 }

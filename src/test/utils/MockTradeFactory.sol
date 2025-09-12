@@ -33,7 +33,7 @@ contract MockTradeFactory {
     function enableCalled() external view returns (bool) {
         return _enableCalled;
     }
-    
+
     function mockEnableCalled(bool value) external {
         _enableCalled = value;
     }

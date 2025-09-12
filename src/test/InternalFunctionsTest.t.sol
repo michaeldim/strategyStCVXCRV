@@ -17,11 +17,11 @@ contract InternalFunctionsTest is Test {
     MockERC20 crv;
     MockERC20 cvx;
     MockERC20 crvUsd;
-    
+
     // Mock components
     MockAuction mockAuction;
     MockTradeFactory mockTradeFactory;
-    
+
     // Strategy
     TestStrategy strategy;
 
@@ -48,7 +48,7 @@ contract InternalFunctionsTest is Test {
     function test_claimRewards() public {
         // Mint tokens to simulate received rewards
         crv.mint(address(this), 200e18);
-        
+
         // Verify rewards were claimed
         assertEq(crv.balanceOf(address(this)), 200e18, "Should have claimed rewards");
     }
@@ -57,7 +57,7 @@ contract InternalFunctionsTest is Test {
     function test_freeFunds() public {
         // Mint tokens to simulate freed assets
         cvxCrv.mint(address(this), 500e18);
-        
+
         // Verify funds were freed
         assertEq(cvxCrv.balanceOf(address(this)), 500e18, "Should have freed funds");
     }
@@ -66,13 +66,13 @@ contract InternalFunctionsTest is Test {
     function test_freeFunds_excessive() public {
         // Mint a known amount
         cvxCrv.mint(address(this), 1000e18);
-        
+
         // Scenario: attempting to free 2000 when we only have 1000
         // Note: We're just using these values for documentation purposes
         // uint256 requested = 2000e18; // This would exceed the available balance
         uint256 available = 1000e18;
         uint256 expected = available; // Should be limited to available
-        
+
         // Verify behavior matches expectations
         assertEq(cvxCrv.balanceOf(address(this)), expected, "Should limit to available amount");
     }
@@ -81,7 +81,7 @@ contract InternalFunctionsTest is Test {
     function test_emergencyWithdraw() public {
         // Mint tokens to simulate emergency withdrawn assets
         cvxCrv.mint(address(this), 1000e18);
-        
+
         // Verify emergency withdrawal
         assertEq(cvxCrv.balanceOf(address(this)), 1000e18, "Should have withdrawn assets");
     }
@@ -90,10 +90,10 @@ contract InternalFunctionsTest is Test {
     function test_emergencyWithdraw_excessive() public {
         // Mint a limited amount
         cvxCrv.mint(address(this), 800e18);
-        
+
         // Scenario: request more than what's available
         uint256 expected = 800e18;
-        
+
         // Verify limited to available amount
         assertEq(cvxCrv.balanceOf(address(this)), expected, "Should have limited withdrawal");
     }
@@ -102,10 +102,10 @@ contract InternalFunctionsTest is Test {
     function test_sellRewards_tradeFactory() public {
         // Mint tokens to simulate reward balances
         crv.mint(address(this), 500e18);
-        
+
         // Mock a trade that happened
         mockTradeFactory.mockEnableCalled(true);
-        
+
         // Verify TradeFactory interactions
         assertTrue(mockTradeFactory.enableCalled(), "TradeFactory should have been called");
     }
@@ -114,11 +114,9 @@ contract InternalFunctionsTest is Test {
     function test_sellRewards_noMechanisms() public {
         // Mint tokens to simulate reward balances
         crv.mint(address(this), 500e18);
-        
+
         // Scenario: no trade factory and no auction available
         // Verify that tokens remain unchanged (early return)
         assertEq(crv.balanceOf(address(this)), 500e18, "Balance should remain unchanged");
     }
-    
-
 }

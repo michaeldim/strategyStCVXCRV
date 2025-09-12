@@ -159,17 +159,9 @@ abstract contract TestHelper is Setup {
      */
     function mockRequireManagement(address _strategy, address _management) internal {
         // Mock the requireManagement call to succeed for our test address
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSignature("requireManagement(address)", _management),
-            ""
-        );
+        vm.mockCall(_strategy, abi.encodeWithSignature("requireManagement(address)", _management), "");
 
         // Also mock the management() function to return our address
-        vm.mockCall(
-            _strategy,
-            abi.encodeWithSignature("management()"),
-            abi.encode(_management)
-        );
+        vm.mockCall(_strategy, abi.encodeWithSignature("management()"), abi.encode(_management));
     }
 }

@@ -164,7 +164,11 @@ abstract contract Setup is ExtendedTest, IEvents {
 
             emit log("Setup: Step 30 - Before FACTORY assignment");
             // Defensive mock for FACTORY() if needed
-            vm.mockCall(address(strategy), abi.encodeWithSignature("FACTORY()"), abi.encode(address(testStrategyFactory)));
+            vm.mockCall(
+                address(strategy),
+                abi.encodeWithSignature("FACTORY()"),
+                abi.encode(address(testStrategyFactory))
+            );
             emit log("Setup: Step 31 - After FACTORY assignment");
 
             // Label strategy address
@@ -237,22 +241,8 @@ abstract contract Setup is ExtendedTest, IEvents {
         emit log_string("setUpStrategy: Mock trade factory created");
 
         // Set trade factory address
-        emit log_string("setUpStrategy: Setting trade factory");
-        vm.prank(management);
-        _strategy.setTradeFactory(address(tradeFactory));
-        emit log_string("setUpStrategy: Trade factory set");
-
-        // Constants needed for enabling routes
-        // (already declared above)
-
-        // Enable trade factory routes
-        emit log_string("setUpStrategy: Enabling trade factory routes");
-        vm.startPrank(management);
-        _strategy.enableTradeFactoryRoute(CRV, CVXCRV);
-        _strategy.enableTradeFactoryRoute(CVX, CVXCRV);
-        _strategy.enableTradeFactoryRoute(CRVUSD, CVXCRV);
-        vm.stopPrank();
-        emit log_string("setUpStrategy: Trade factory routes enabled");
+        // Auction configuration would go here if needed
+        emit log_string("setUpStrategy: Auction-only mode (TradeFactory removed)");
 
         return address(_strategy);
     }

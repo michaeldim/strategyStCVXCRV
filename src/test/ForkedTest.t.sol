@@ -19,15 +19,7 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
     uint256 public constant INITIAL_DEPOSIT = 100e18;
 
     // Updated constructor to match the simplified StCVXCRVStrategy constructor
-    constructor(
-        address _asset,
-        string memory _name
-    )
-        StCVXCRVStrategy(
-            _asset,
-            _name
-        )
-    {}
+    constructor(address _asset, string memory _name) StCVXCRVStrategy(_asset, _name) {}
 
     // This function is no longer needed as we manually add reward tokens
     // in the _setupAndTestStrategy function
@@ -51,19 +43,7 @@ contract ForkedFixedStrategy is StCVXCRVStrategy {
         // Claim rewards from the staking wrapper
         WRAPPER.getReward(address(this));
 
-        // Process each reward token using TradeFactory
-        address tf = tradeFactory();
-        if (tf != address(0)) {
-            for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
-                address token = strategyRewardTokens[i];
-                uint256 tokenBalance = IERC20(token).balanceOf(address(this));
-
-                if (tokenBalance > minAmountToSellMapping[token]) {
-                    // Enable trade for the token
-                    try ITradeFactory(tf).enable(token, address(asset)) {} catch {}
-                }
-            }
-        }
+        // No automatic auction kicking - keepers handle it manually
 
         // Stake any newly acquired asset into the wrapper
         uint256 newAssets = IERC20(asset).balanceOf(address(this)) - totalAssets;
@@ -176,18 +156,10 @@ contract ForkedTest is Test {
         );
 
         // Mock enable function to always succeed
-        vm.mockCall(
-            MOCK_TRADE_FACTORY,
-            abi.encodeWithSignature("enable(address,address)"),
-            abi.encode()
-        );
+        vm.mockCall(MOCK_TRADE_FACTORY, abi.encodeWithSignature("enable(address,address)"), abi.encode());
 
         // Mock all other necessary TradeFactory functions
-        vm.mockCall(
-            MOCK_TRADE_FACTORY,
-            abi.encodeWithSignature("execute(address,address,uint256)"),
-            abi.encode(true)
-        );
+        vm.mockCall(MOCK_TRADE_FACTORY, abi.encodeWithSignature("execute(address,address,uint256)"), abi.encode(true));
 
         vm.startPrank(management); // Start prank as management before deploying TestStrategy
         strategy = new ForkedFixedStrategy(
@@ -200,36 +172,15 @@ contract ForkedTest is Test {
         // Stop pranking after strategy deployment
         vm.stopPrank();
 
-        // Add reward tokens with their respective swap types
-        uint8 swapMethod = 1; // 1 = TradeFactory
-        vm.startPrank(management);
-        strategy.addRewardToken(CRV, swapMethod);
-        strategy.addRewardToken(CVX, swapMethod);
-        strategy.addRewardToken(CRVUSD, swapMethod);
-        vm.stopPrank();
+        // No reward token configuration needed - keepers handle auction kicking manually
+        console.log("Strategy uses manual auction kicking - no reward token configuration needed");
 
-        console.log("Added CRV, CVX, and CRVUSD as reward tokens");
-
-        // Configure trade factory
-        vm.startPrank(management);
-        strategy.setTradeFactory(MOCK_TRADE_FACTORY);
-        vm.stopPrank();
-        console.log("Trade factory set to:", MOCK_TRADE_FACTORY);
-
-        // Additional specific mocks for TradeFactory if needed
+        // Additional auction configuration if needed
         // Note: We already mocked the generic enable function above
         // These are more specific mocks for each token pair
-        vm.mockCall(
-            MOCK_TRADE_FACTORY,
-            abi.encodeWithSignature("enable(address,address)", CRV, CVXCRV),
-            abi.encode()
-        );
+        vm.mockCall(MOCK_TRADE_FACTORY, abi.encodeWithSignature("enable(address,address)", CRV, CVXCRV), abi.encode());
 
-        vm.mockCall(
-            MOCK_TRADE_FACTORY,
-            abi.encodeWithSignature("enable(address,address)", CVX, CVXCRV),
-            abi.encode()
-        );
+        vm.mockCall(MOCK_TRADE_FACTORY, abi.encodeWithSignature("enable(address,address)", CVX, CVXCRV), abi.encode());
 
         vm.mockCall(
             MOCK_TRADE_FACTORY,
@@ -238,11 +189,7 @@ contract ForkedTest is Test {
         );
 
         // Mock additional wrapper interactions for successful tests
-        vm.mockCall(
-            WRAPPER,
-            abi.encodeWithSignature("getReward(address)", address(strategy)),
-            abi.encode(true)
-        );
+        vm.mockCall(WRAPPER, abi.encodeWithSignature("getReward(address)", address(strategy)), abi.encode(true));
 
         // First stake should work and show cvxCRV tokens are sent to the wrapper
         vm.mockCall(
@@ -256,7 +203,7 @@ contract ForkedTest is Test {
         vm.mockCall(
             WRAPPER,
             abi.encodeWithSignature("balanceOf(address)", address(strategy)),
-            abi.encode(1 * 10**18) // 1 CVXCRV staked in wrapper
+            abi.encode(1 * 10 ** 18) // 1 CVXCRV staked in wrapper
         );
 
         // Add mocks for getting pending rewards
@@ -264,29 +211,25 @@ contract ForkedTest is Test {
         vm.mockCall(
             WRAPPER,
             abi.encodeWithSignature("earned(address)", address(strategy)),
-            abi.encode(1 * 10**18) // 1 CRV pending reward
+            abi.encode(1 * 10 ** 18) // 1 CRV pending reward
         );
 
         // For each reward token, we could mock specific earned functions if they exist
         vm.mockCall(
             WRAPPER,
             abi.encodeWithSignature("earnedExtra(address,uint256)", address(strategy), uint256(0)),
-            abi.encode(0.5 * 10**18) // 0.5 CRVUSD pending reward
+            abi.encode(0.5 * 10 ** 18) // 0.5 CRVUSD pending reward
         );
 
         vm.mockCall(
             WRAPPER,
             abi.encodeWithSignature("earnedExtra(address,uint256)", address(strategy), uint256(1)),
-            abi.encode(0.3 * 10**18) // 0.3 CVX pending reward
+            abi.encode(0.3 * 10 ** 18) // 0.3 CVX pending reward
         );
 
         // Add more comprehensive mocking for wrapper reward tracking
         // This demonstrates how we test that rewards accrue in the wrapper before harvesting
-        vm.mockCall(
-            WRAPPER,
-            abi.encodeWithSignature("extraRewards(uint256)"),
-            abi.encode(makeAddr("extraReward1"))
-        );
+        vm.mockCall(WRAPPER, abi.encodeWithSignature("extraRewards(uint256)"), abi.encode(makeAddr("extraReward1")));
 
         vm.mockCall(
             WRAPPER,
@@ -373,9 +316,9 @@ contract ForkedTest is Test {
             console.log("\nChecking for pending rewards in wrapper before harvesting...");
 
             // Mock the pendingRewards query since we can't directly call it
-            uint256 pendingCrv = 1 * 10**18; // Simulated pending CRV rewards
-            uint256 pendingCvx = 0.3 * 10**18; // Simulated pending CVX rewards
-            uint256 pendingCrvUsd = 0.5 * 10**18; // Simulated pending CRVUSD rewards
+            uint256 pendingCrv = 1 * 10 ** 18; // Simulated pending CRV rewards
+            uint256 pendingCvx = 0.3 * 10 ** 18; // Simulated pending CVX rewards
+            uint256 pendingCrvUsd = 0.5 * 10 ** 18; // Simulated pending CRVUSD rewards
 
             console.log("Simulated pending CRV rewards:");
             console.logUint(pendingCrv);
@@ -412,14 +355,15 @@ contract ForkedTest is Test {
                 console.logUint(extraReward1);
                 console.log("Extra CVX reward:");
                 console.logUint(extraReward2);
-                console.log("Total pending rewards in wrapper before harvesting:",
-                    uint256(mainReward + extraReward1 + extraReward2));
+                console.log(
+                    "Total pending rewards in wrapper before harvesting:",
+                    uint256(mainReward + extraReward1 + extraReward2)
+                );
             } catch Error(string memory reason) {
                 console.log("Error checking all wrapper rewards:", reason);
             } catch (bytes memory /* lowLevelData */) {
                 console.log("Low level error checking wrapper rewards");
             }
-
         } catch Error(string memory reason) {
             console.log("Deposit failed with reason:", reason);
         } catch (bytes memory /* lowLevelData */) {
@@ -475,7 +419,9 @@ contract ForkedTest is Test {
                 console.logUint(IERC20(WRAPPER).balanceOf(address(strategy)));
 
                 console.log("Total strategy holdings (CVXCRV + Wrapper):");
-                console.logUint(IERC20(CVXCRV).balanceOf(address(strategy)) + IERC20(WRAPPER).balanceOf(address(strategy)));
+                console.logUint(
+                    IERC20(CVXCRV).balanceOf(address(strategy)) + IERC20(WRAPPER).balanceOf(address(strategy))
+                );
             } catch Error(string memory reason) {
                 console.log("Second harvest error:", reason);
             } catch (bytes memory /* lowLevelData */) {
@@ -507,12 +453,9 @@ contract ForkedTest is Test {
     }
 
     // Helper function to check all rewards in the wrapper
-    function checkAllWrapperRewards(address strategyAddress) external view returns (
-        uint256 mainReward,
-        uint256 extraReward1,
-        uint256 extraReward2,
-        uint256 stakedBalance
-    ) {
+    function checkAllWrapperRewards(
+        address strategyAddress
+    ) external view returns (uint256 mainReward, uint256 extraReward1, uint256 extraReward2, uint256 stakedBalance) {
         // This is a more comprehensive check of wrapper rewards
         // We call all the mocked functions we set up
 
@@ -551,7 +494,6 @@ contract ForkedTest is Test {
     function test_CICompatible() public {
         // This test doesn't require forking, so it will always work in CI
         console.log("Running CI-compatible test for ForkedTest.t.sol");
-
 
         // Do some basic assertions that don't need RPC
         assertTrue(true, "CI-compatible test passes");

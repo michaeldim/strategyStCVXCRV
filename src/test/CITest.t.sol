@@ -19,10 +19,7 @@ contract CITest is Test {
         asset = new MockERC20("Mock Asset", "ASSET", 18);
 
         // Deploy the strategy with our simplified constructor
-        strategy = new TestStrategy(
-            address(asset),
-            "Test Strategy"
-        );
+        strategy = new TestStrategy(address(asset), "Test Strategy");
 
         // Verify initialization
         assertTrue(strategy.getAsset() == address(asset), "Asset address should match");
@@ -37,29 +34,8 @@ contract CITest is Test {
         MockERC20 crv = new MockERC20("Curve DAO Token", "CRV", 18);
         MockERC20 cvx = new MockERC20("Convex Token", "CVX", 18);
 
-        // Add reward tokens
-        vm.startPrank(address(this)); // We need management permissions
-
-        // Assume the test contract is recognized as management
-        strategy.addRewardToken(address(crv), 1); // Use SwapType.TRADE_FACTORY
-        strategy.addRewardToken(address(cvx), 2); // Use SwapType.AUCTION
-
-        vm.stopPrank();
-
-        // Verify reward tokens were added
-        address[] memory rewardTokens = strategy.getAllRewardTokens();
-        assertEq(rewardTokens.length, 2, "Should have 2 reward tokens");
-        assertEq(rewardTokens[0], address(crv), "First reward token should be CRV");
-        assertEq(rewardTokens[1], address(cvx), "Second reward token should be CVX");
-
-        // Test removal of a reward token
-        vm.prank(address(this));
-        strategy.removeRewardToken(address(crv));
-
-        // Verify reward token was removed
-        rewardTokens = strategy.getAllRewardTokens();
-        assertEq(rewardTokens.length, 1, "Should have 1 reward token after removal");
-        assertEq(rewardTokens[0], address(cvx), "Remaining reward token should be CVX");
+        // No reward token configuration needed - keepers handle auction kicking manually
+        // The strategy no longer tracks reward tokens internally
     }
 
     function test_AlwaysPass() public pure {

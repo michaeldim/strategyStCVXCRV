@@ -9,15 +9,7 @@ import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.so
 contract DebugTestStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
 
-    constructor(
-        address _asset,
-        string memory _name
-    )
-        StCVXCRVStrategy(
-            _asset,
-            _name
-        )
-    {}
+    constructor(address _asset, string memory _name) StCVXCRVStrategy(_asset, _name) {}
 
     function setMockShutdown(bool _isShutdown) external {
         mockIsShutdown = _isShutdown;
@@ -105,50 +97,6 @@ contract DebugTestStrategy is StCVXCRVStrategy {
     }
 
     function _doSellRewards() internal {
-        console.log("  _doSellRewards: Entered");
-        address tf = tradeFactory();
-        console.log("  _doSellRewards: Trade factory address:");
-        console.log(tf);
-
-        for (uint256 i = 0; i < strategyRewardTokens.length; i++) {
-            address rewardToken = strategyRewardTokens[i];
-            console.log("  _doSellRewards: Checking reward token:");
-            console.log(rewardToken);
-
-            uint256 balance;
-            try IERC20(rewardToken).balanceOf(address(this)) returns (uint256 bal) {
-                balance = bal;
-                console.log("    Balance =");
-                console.logUint(balance);
-            } catch {
-                console.log("    ERROR: balanceOf reverted for reward token");
-                balance = 0;
-            }
-
-            uint256 minSell = minAmountToSellMapping[rewardToken];
-            console.log("    Min amount to sell =");
-            console.logUint(minSell);
-
-            if (balance > minSell) {
-                console.log("    Balance exceeds minimum, attempting to sell.");
-                if (tf != address(0)) {
-                    console.log("    Using trade factory. Enabling trade.");
-                    try ITradeFactory(tf).enable(rewardToken, address(asset)) {
-                        console.log("    ITradeFactory.enable succeeded.");
-                    } catch Error(string memory reason) {
-                        console.log("    ERROR: ITradeFactory.enable failed with reason:");
-                        console.log(reason);
-                    } catch (bytes memory reasonBytes) {
-                        console.log("    ERROR: ITradeFactory.enable failed with unknown reason (bytes):");
-                        console.logBytes(reasonBytes);
-                    }
-                } else {
-                    console.log("    No selling mechanism (trade factory) is enabled or configured.");
-                }
-            } else {
-                console.log("    Balance does not exceed minimum, no selling.");
-            }
-        }
-        console.log("  _doSellRewards: Finished processing reward tokens.");
+        console.log("  _doSellRewards: No automatic reward selling - keepers handle auction kicking manually");
     }
 }

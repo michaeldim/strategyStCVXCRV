@@ -39,10 +39,7 @@ contract CoreFunctionalityTest is Setup {
 
         // Deploy test strategy with simplified constructor
         vm.startPrank(management);
-        testStrategy = new TestStrategy(
-            address(cvxCrv),
-            "Generic Staking Strategy"
-        );
+        testStrategy = new TestStrategy(address(cvxCrv), "Generic Staking Strategy");
         vm.stopPrank();
 
         // Configure test strategy
@@ -51,19 +48,7 @@ contract CoreFunctionalityTest is Setup {
         // Set the strategy name explicitly to match what we expect in the test
         testStrategy.setName("Generic Staking Strategy");
 
-        // Set trade factory
-        testStrategy.setTradeFactory(address(mockTradeFactory));
-
-        // Add reward tokens
-        uint8 tradeFactorySwap = 1; // Use SwapType.TRADE_FACTORY
-        testStrategy.addRewardToken(address(crv), tradeFactorySwap);
-        testStrategy.addRewardToken(address(cvx), tradeFactorySwap);
-        testStrategy.addRewardToken(address(crvUsd), tradeFactorySwap);
-
-        // Configure minimum amounts to sell
-        testStrategy.setMinAmountToSellMapping(address(crv), 10 * 1e18);   // 10 CRV
-        testStrategy.setMinAmountToSellMapping(address(cvx), 5 * 1e18);    // 5 CVX
-        testStrategy.setMinAmountToSellMapping(address(crvUsd), 20 * 1e18); // 20 crvUSD
+        // No reward token configuration needed - keepers handle auction kicking manually
 
         vm.stopPrank();
 
@@ -88,51 +73,19 @@ contract CoreFunctionalityTest is Setup {
             "Strategy name should match"
         );
 
-        // Check reward tokens
-        address[] memory rewardTokens = testStrategy.getAllRewardTokens();
-        assertEq(rewardTokens.length, 3, "Should have 3 reward tokens");
-        assertEq(rewardTokens[0], address(crv), "First reward token should be CRV");
-        assertEq(rewardTokens[1], address(cvx), "Second reward token should be CVX");
-        assertEq(rewardTokens[2], address(crvUsd), "Third reward token should be crvUSD");
+        // No reward tokens to check - manual auction kicking only
     }
 
-    function test_RewardTokenManagement() public {
-        // Remove a reward token
-        vm.startPrank(management);
-        testStrategy.removeRewardToken(address(crvUsd));
-        vm.stopPrank();
-
-        // Verify removal
-        address[] memory rewardTokens = testStrategy.getAllRewardTokens();
-        assertEq(rewardTokens.length, 2, "Should have 2 reward tokens after removal");
-
-        // Add it back
-        vm.startPrank(management);
-        uint8 auctionSwap = 2; // Use SwapType.AUCTION
-        testStrategy.addRewardToken(address(crvUsd), auctionSwap);
-        vm.stopPrank();
-
-        // Verify addition
-        rewardTokens = testStrategy.getAllRewardTokens();
-        assertEq(rewardTokens.length, 3, "Should have 3 reward tokens again");
-    }
+    // test_RewardTokenManagement removed - no longer tracking reward tokens
 
     function test_SwapConfigurationManagement() public {
         // Mock an auction contract
         address mockAuction = makeAddr("mockAuction");
 
         // Configure the mock auction
-        vm.mockCall(
-            mockAuction,
-            abi.encodeWithSignature("want()"),
-            abi.encode(address(cvxCrv))
-        );
+        vm.mockCall(mockAuction, abi.encodeWithSignature("want()"), abi.encode(address(cvxCrv)));
 
-        vm.mockCall(
-            mockAuction,
-            abi.encodeWithSignature("receiver()"),
-            abi.encode(address(testStrategy))
-        );
+        vm.mockCall(mockAuction, abi.encodeWithSignature("receiver()"), abi.encode(address(testStrategy)));
 
         // Set the auction
         vm.startPrank(management);
@@ -142,13 +95,8 @@ contract CoreFunctionalityTest is Setup {
         // Verify auction is set
         assertEq(testStrategy.auction(), mockAuction, "Auction address should be set");
 
-        // Set swap type for a token to auction
-        vm.startPrank(management);
-        testStrategy.setSwapType(address(crv), StCVXCRVStrategy.SwapType.AUCTION);
-        vm.stopPrank();
-
-        // Verify swap type is set
-        assertEq(uint(testStrategy.swapType(address(crv))), uint(StCVXCRVStrategy.SwapType.AUCTION), "Swap type should be AUCTION");
+        // Auction-only mode now - no swap type setting needed
+        // All reward tokens automatically use auction
     }
 
     function test_DeployFunds() public {

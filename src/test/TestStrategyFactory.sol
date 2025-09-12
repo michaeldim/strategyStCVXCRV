@@ -38,17 +38,10 @@ contract TestStrategyFactory {
         address, // _crvUsd (unused)
         address, // _wrapper (unused)
         address, // Unused auction parameter (kept for compatibility)
-        address  // _tradeFactoryAddress (unused)
+        address // _tradeFactoryAddress (unused)
     ) public returns (address) {
         // Create the strategy
-        IStrategyInterface _newStrategy = IStrategyInterface(
-            address(
-                new TestStrategy(
-                    _asset,
-                    _name
-                )
-            )
-        );
+        IStrategyInterface _newStrategy = IStrategyInterface(address(new TestStrategy(_asset, _name)));
 
         // Save the address
         address strategyAddress = address(_newStrategy);

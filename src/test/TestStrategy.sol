@@ -9,15 +9,7 @@ contract TestStrategy is StCVXCRVStrategy {
     bool public mockIsShutdown = false;
     bool public mockIsKeeper = false;
 
-    constructor(
-        address _asset,
-        string memory _name
-    )
-        StCVXCRVStrategy(
-            _asset,
-            _name
-        )
-    {}
+    constructor(address _asset, string memory _name) StCVXCRVStrategy(_asset, _name) {}
 
     // Helper to identify this as a test contract
     function isMock() external pure returns (bool) {
@@ -132,24 +124,9 @@ contract TestStrategy is StCVXCRVStrategy {
         }
     }
 
-    function testSellRewards() external {
-        _sellRewards();
-    }
+    // Removed - no longer using _sellRewards
 
-    // Special version to test early return in _sellRewards
-    function testSellRewardsWithNoMechanisms() external {
-        // Save the current trade factory address
-        address originalTradeFactory = tradeFactory();
-
-        // Set tradeFactory to zero address to test early return
-        _setTradeFactory(address(0), address(asset));
-
-        // Call the function - should hit early return
-        _sellRewards();
-
-        // Restore original settings
-        _setTradeFactory(originalTradeFactory, address(asset));
-    }
+    // Removed - no longer using _sellRewards
 
     function testClaimRewards() external {
         _claimRewards();
