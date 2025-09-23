@@ -20,6 +20,8 @@ contract StCVXCRVStrategy is BaseStrategy {
 
     // --- Auction configuration ---
     address public auction;
+    mapping(address => uint256) public minAmountToSell;
+    bool public autoKickAuctions;
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -70,6 +72,10 @@ contract StCVXCRVStrategy is BaseStrategy {
      */
     function _harvestAndReport() internal virtual override returns (uint256 _totalAssets) {
         _claimRewards();
+
+        if (autoKickAuctions && auction != address(0)) {
+            _kickAuctionsIfNeeded();
+        }
 
         uint256 assetBal = IERC20(address(asset)).balanceOf(address(this));
         if (assetBal > 0 && !TokenizedStrategy.isShutdown()) {
@@ -152,6 +158,81 @@ contract StCVXCRVStrategy is BaseStrategy {
         uint256 currentWeight = WRAPPER.userRewardWeight(address(this));
         if (_weight != currentWeight) {
             WRAPPER.setRewardWeight(_weight);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Auction Management
+    // -----------------------------------------------------------------------
+
+    /**
+     * @notice Set minimum amount for a token to be auctioned
+     * @param _token Token address
+     * @param _minAmount Minimum amount to trigger auction
+     */
+    function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
+        minAmountToSell[_token] = _minAmount;
+    }
+
+    /**
+     * @notice Enable or disable automatic auction kicking during harvest
+     * @param _autoKick Whether to automatically kick auctions
+     */
+    function setAutoKickAuctions(bool _autoKick) external onlyManagement {
+        autoKickAuctions = _autoKick;
+    }
+
+    /**
+     * @notice Check if an auction should be triggered for a specific token
+     * @param _from The token to potentially auction
+     * @return Whether an auction should be kicked
+     * @return Calldata for the kick function or error message
+     */
+    function auctionTrigger(address _from) external view returns (bool, bytes memory) {
+        if (auction == address(0)) {
+            return (false, bytes("No auction set"));
+        }
+
+        if (_from == address(asset) || _from == address(WRAPPER)) {
+            return (false, bytes("Invalid token"));
+        }
+
+        uint256 balance = IERC20(_from).balanceOf(address(this));
+        uint256 minAmount = minAmountToSell[_from];
+
+        // If minAmount is 0, treat as disabled to prevent dust attacks
+        if (minAmount == 0) {
+            return (false, bytes("Min amount not set"));
+        }
+
+        if (balance >= minAmount) {
+            return (true, abi.encodeCall(this.kickAuction, (_from)));
+        }
+
+        return (false, bytes("Not enough kickable"));
+    }
+
+    /**
+     * @dev Internal function to kick auctions for tokens above threshold
+     */
+    function _kickAuctionsIfNeeded() internal {
+        uint256 rewardCount = WRAPPER.rewardLength();
+
+        for (uint256 i = 0; i < rewardCount; i++) {
+            (address token, , , ) = WRAPPER.rewards(i);
+
+            if (token == address(asset) || token == address(WRAPPER)) {
+                continue;
+            }
+
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            uint256 minAmount = minAmountToSell[token];
+
+            // Skip if no threshold set (prevents dust attacks)
+            if (minAmount > 0 && balance >= minAmount) {
+                IERC20(token).safeTransfer(auction, balance);
+                IAuction(auction).kick(token);
+            }
         }
     }
 }
