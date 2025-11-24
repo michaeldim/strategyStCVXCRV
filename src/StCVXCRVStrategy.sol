@@ -7,6 +7,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ICvxCrvStakingWrapper} from "./interfaces/ICvxCrvStakingWrapper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAuction} from "./interfaces/IAuction.sol";
+import {IAuctionRegistry, IAuctionFactory} from "./interfaces/IAuctionRegistry.sol";
 
 /**
  * @title Staked cvxCRV Compounder
@@ -19,9 +20,9 @@ contract StCVXCRVStrategy is BaseStrategy {
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
 
     // --- Auction configuration ---
+    IAuctionRegistry public constant AUCTION_REGISTRY = IAuctionRegistry(0x94F44706A61845a4f9e59c4Bc08cEA4503e48D12);
     address public auction;
     mapping(address => uint256) public minAmountToSell;
-    bool public autoKickAuctions;
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -73,20 +74,12 @@ contract StCVXCRVStrategy is BaseStrategy {
     function _harvestAndReport() internal virtual override returns (uint256 _totalAssets) {
         _claimRewards();
 
-        if (autoKickAuctions && auction != address(0)) {
-            _kickAuctionsIfNeeded();
-        }
-
-        uint256 assetBal = IERC20(address(asset)).balanceOf(address(this));
+        uint256 assetBal = asset.balanceOf(address(this));
         if (assetBal > 0 && !TokenizedStrategy.isShutdown()) {
             _deployFunds(assetBal);
         }
 
-        uint256 idleAssets = asset.balanceOf(address(this));
-        uint256 stakedAssets = WRAPPER.balanceOf(address(this));
-        _totalAssets = idleAssets + stakedAssets;
-
-        return _totalAssets;
+        return asset.balanceOf(address(this)) + WRAPPER.balanceOf(address(this));
     }
 
     /**
@@ -114,6 +107,7 @@ contract StCVXCRVStrategy is BaseStrategy {
      */
     function setAuction(address _auction) external onlyManagement {
         if (_auction != address(0)) {
+            require(_isOfficialAuction(_auction), "Auction not from official factory");
             require(IAuction(_auction).want() == address(asset), "Auction want must be asset");
             require(IAuction(_auction).receiver() == address(this), "Auction receiver must be strategy");
         }
@@ -122,8 +116,27 @@ contract StCVXCRVStrategy is BaseStrategy {
     }
 
     /**
-     * @notice Manually kick an auction for a specific token
-     * @dev Can be called by keepers to auction any token held by the strategy
+     * @dev Verifies an auction was deployed from an official factory in the registry
+     * @param _auction Address to verify
+     * @return True if auction is from an official factory
+     */
+    function _isOfficialAuction(address _auction) internal view returns (bool) {
+        address[] memory factories = AUCTION_REGISTRY.getAllFactories();
+
+        for (uint256 i = 0; i < factories.length; i++) {
+            address[] memory auctions = IAuctionFactory(factories[i]).getAllAuctions();
+            for (uint256 j = 0; j < auctions.length; j++) {
+                if (auctions[j] == _auction) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @notice Kick an auction for a specific token
+     * @dev Only keepers can call - set keeper to address(0) for permissionless
      * @param _token Token address to auction
      */
     function kickAuction(address _token) external onlyKeepers {
@@ -132,7 +145,9 @@ contract StCVXCRVStrategy is BaseStrategy {
         require(_token != address(WRAPPER), "Cannot auction wrapper");
 
         uint256 balance = IERC20(_token).balanceOf(address(this));
-        require(balance > 0, "No tokens to auction");
+        uint256 minAmount = minAmountToSell[_token];
+
+        require(minAmount > 0 && balance >= minAmount, "Below threshold");
 
         IERC20(_token).safeTransfer(auction, balance);
         IAuction(auction).kick(_token);
@@ -175,14 +190,6 @@ contract StCVXCRVStrategy is BaseStrategy {
     }
 
     /**
-     * @notice Enable or disable automatic auction kicking during harvest
-     * @param _autoKick Whether to automatically kick auctions
-     */
-    function setAutoKickAuctions(bool _autoKick) external onlyManagement {
-        autoKickAuctions = _autoKick;
-    }
-
-    /**
      * @notice Check if an auction should be triggered for a specific token
      * @param _from The token to potentially auction
      * @return Whether an auction should be kicked
@@ -205,34 +212,15 @@ contract StCVXCRVStrategy is BaseStrategy {
             return (false, bytes("Min amount not set"));
         }
 
-        if (balance >= minAmount) {
-            return (true, abi.encodeCall(this.kickAuction, (_from)));
+        if (balance < minAmount) {
+            return (false, bytes("Below min amount"));
         }
 
-        return (false, bytes("Not enough kickable"));
-    }
-
-    /**
-     * @dev Internal function to kick auctions for tokens above threshold
-     */
-    function _kickAuctionsIfNeeded() internal {
-        uint256 rewardCount = WRAPPER.rewardLength();
-
-        for (uint256 i = 0; i < rewardCount; i++) {
-            (address token, , , ) = WRAPPER.rewards(i);
-
-            if (token == address(asset) || token == address(WRAPPER)) {
-                continue;
-            }
-
-            uint256 balance = IERC20(token).balanceOf(address(this));
-            uint256 minAmount = minAmountToSell[token];
-
-            // Skip if no threshold set (prevents dust attacks)
-            if (minAmount > 0 && balance >= minAmount) {
-                IERC20(token).safeTransfer(auction, balance);
-                IAuction(auction).kick(token);
-            }
+        // Check if auction is kickable (no active auction)
+        if (IAuction(auction).kickable(_from) == 0) {
+            return (false, bytes("Auction not kickable"));
         }
+
+        return (true, abi.encodeCall(this.kickAuction, (_from)));
     }
 }

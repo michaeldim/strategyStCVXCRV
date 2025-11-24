@@ -22,22 +22,41 @@ contract MockAuction {
     function kick(address) external pure returns (uint256) {
         return 1;
     }
+
+    function kickable(address) external pure returns (uint256) {
+        return type(uint256).max;
+    }
 }
 
-// Helper contract to test internal functions
-contract StrategyHarness is StCVXCRVStrategy {
-    constructor(address _asset, string memory _name) StCVXCRVStrategy(_asset, _name) {}
+// Mock registry that returns our mock factory
+contract MockAuctionRegistry {
+    address[] public factories;
 
-    // Expose internal function for testing
-    function exposed_kickAuctionsIfNeeded() external {
-        _kickAuctionsIfNeeded();
+    function addFactory(address factory) external {
+        factories.push(factory);
+    }
+
+    function getAllFactories() external view returns (address[] memory) {
+        return factories;
+    }
+}
+
+// Mock factory that returns our mock auctions
+contract MockAuctionFactory {
+    address[] public auctions;
+
+    function addAuction(address auction) external {
+        auctions.push(auction);
+    }
+
+    function getAllAuctions() external view returns (address[] memory) {
+        return auctions;
     }
 }
 
 contract AuctionDoSProtectionTest is Test {
     StCVXCRVStrategy internal _strategy;
     ITokenizedStrategy public strategy;
-    StrategyHarness public harness;
     address public management;
     address public keeper;
     address public attacker;
@@ -49,6 +68,8 @@ contract AuctionDoSProtectionTest is Test {
     address constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
 
     MockAuction public auction;
+    MockAuctionRegistry public mockRegistry;
+    MockAuctionFactory public mockFactory;
 
     bool public isForkTest;
 
@@ -95,6 +116,11 @@ contract AuctionDoSProtectionTest is Test {
         keeper = makeAddr("keeper");
         attacker = makeAddr("attacker");
 
+        // Deploy mock registry and factory
+        mockRegistry = new MockAuctionRegistry();
+        mockFactory = new MockAuctionFactory();
+        mockRegistry.addFactory(address(mockFactory));
+
         // Deploy strategy as management (which automatically makes deployer the management)
         vm.startPrank(management);
         _strategy = new StCVXCRVStrategy(CVXCRV, "StCVXCRV Strategy");
@@ -126,7 +152,7 @@ contract AuctionDoSProtectionTest is Test {
             abi.encode(uint256(0))
         );
 
-        // Mock reward metadata so auto-kicks operate deterministically in tests.
+        // Mock reward metadata
         vm.mockCall(
             wrapper,
             abi.encodeWithSelector(ICvxCrvStakingWrapper.rewardLength.selector),
@@ -148,8 +174,24 @@ contract AuctionDoSProtectionTest is Test {
             abi.encode(CRVUSD, uint8(0), uint128(0), uint128(0))
         );
 
-        // Setup auction
+        // Setup auction and register it
         auction = new MockAuction(CVXCRV, address(strategy));
+        mockFactory.addAuction(address(auction));
+
+        // Mock the registry call to return our mock registry
+        vm.mockCall(
+            address(_strategy.AUCTION_REGISTRY()),
+            abi.encodeWithSelector(bytes4(keccak256("getAllFactories()"))),
+            abi.encode(mockRegistry.getAllFactories())
+        );
+
+        // Mock the factory call to return our auction
+        vm.mockCall(
+            address(mockFactory),
+            abi.encodeWithSelector(bytes4(keccak256("getAllAuctions()"))),
+            abi.encode(mockFactory.getAllAuctions())
+        );
+
         _strategy.setAuction(address(auction));
 
         // Add keeper
@@ -217,7 +259,7 @@ contract AuctionDoSProtectionTest is Test {
         // Should not trigger
         (bool shouldTrigger, bytes memory data) = _strategy.auctionTrigger(CRV);
         assertFalse(shouldTrigger, "Should not trigger below threshold");
-        assertEq(data, bytes("Not enough kickable"), "Should return correct error message");
+        assertEq(data, bytes("Below min amount"), "Should return correct error message");
     }
 
     function test_auctionTrigger_preventsAuctioningAsset() public requiresFork {
@@ -237,108 +279,6 @@ contract AuctionDoSProtectionTest is Test {
         assertEq(data, bytes("No auction set"), "Should return no auction error");
     }
 
-    // ==================== Auto Kick Tests ====================
-
-    function test_autoKickAuctions_defaultDisabled() public requiresFork {
-        assertFalse(_strategy.autoKickAuctions(), "Auto kick should be disabled by default");
-    }
-
-    function test_autoKickAuctions_onlyKicksWithThreshold() public requiresFork {
-        // Enable auto kick
-        vm.startPrank(management);
-        _strategy.setAutoKickAuctions(true);
-        _strategy.setMinAmountToSell(CRV, 100e18);
-        vm.stopPrank();
-
-        // Give strategy CRV below threshold
-        deal(CRV, address(strategy), 50e18);
-
-        // Verify auctionTrigger correctly returns false for below threshold
-        (bool shouldTrigger, bytes memory data) = _strategy.auctionTrigger(CRV);
-        assertFalse(shouldTrigger, "Should not trigger below threshold");
-        assertEq(data, bytes("Not enough kickable"), "Should return correct message");
-
-        // Verify CRV remains in strategy
-        assertEq(IERC20(CRV).balanceOf(address(strategy)), 50e18, "CRV should remain in strategy");
-    }
-
-    function test_kickAuctionsIfNeeded_directly() public requiresFork {
-        // Deploy harness to test internal function
-        vm.prank(management);
-        harness = new StrategyHarness(CVXCRV, "Test Harness");
-
-        // Setup mock auction
-        MockAuction trackableAuction = new MockAuction(CVXCRV, address(harness));
-
-        // Configure harness
-        vm.startPrank(management);
-        harness.setAuction(address(trackableAuction));
-        harness.setMinAmountToSell(CRV, 100e18);
-        harness.setMinAmountToSell(CVX, 50e18);
-        vm.stopPrank();
-
-        // Mock the wrapper rewards for harness
-        vm.mockCall(
-            address(harness.WRAPPER()),
-            abi.encodeWithSelector(ICvxCrvStakingWrapper.rewardLength.selector),
-            abi.encode(uint256(2))
-        );
-        vm.mockCall(
-            address(harness.WRAPPER()),
-            abi.encodeWithSelector(ICvxCrvStakingWrapper.rewards.selector, uint256(0)),
-            abi.encode(CRV, uint8(0), uint128(0), uint128(0))
-        );
-        vm.mockCall(
-            address(harness.WRAPPER()),
-            abi.encodeWithSelector(ICvxCrvStakingWrapper.rewards.selector, uint256(1)),
-            abi.encode(CVX, uint8(0), uint128(0), uint128(0))
-        );
-
-        // Give harness tokens above threshold
-        deal(CRV, address(harness), 150e18);
-        deal(CVX, address(harness), 100e18);
-
-        // Call the internal function directly
-        harness.exposed_kickAuctionsIfNeeded();
-
-        // Check tokens were sent to auction
-        assertEq(IERC20(CRV).balanceOf(address(trackableAuction)), 150e18, "CRV should be sent to auction");
-        assertEq(IERC20(CVX).balanceOf(address(trackableAuction)), 100e18, "CVX should be sent to auction");
-        assertEq(IERC20(CRV).balanceOf(address(harness)), 0, "Harness should have no CRV");
-        assertEq(IERC20(CVX).balanceOf(address(harness)), 0, "Harness should have no CVX");
-    }
-
-    function test_autoKickAuctions_kicksWhenEnabled() public requiresFork {
-        // Setup mock auction that we can track
-        MockAuction trackableAuction = new MockAuction(CVXCRV, address(strategy));
-
-        // Enable auto kick and set threshold
-        vm.startPrank(management);
-        _strategy.setAuction(address(trackableAuction));
-        _strategy.setAutoKickAuctions(true);
-        _strategy.setMinAmountToSell(CRV, 100e18);
-        vm.stopPrank();
-
-        // Give strategy enough CRV
-        deal(CRV, address(strategy), 150e18);
-
-        // Test that autoKickAuctions is enabled
-        assertTrue(_strategy.autoKickAuctions(), "Auto kick should be enabled");
-        assertEq(_strategy.auction(), address(trackableAuction), "Auction should be set");
-
-        // Verify the auction trigger would fire
-        (bool shouldTrigger, ) = _strategy.auctionTrigger(CRV);
-        assertTrue(shouldTrigger, "Should trigger above threshold");
-
-        // Manually kick the auction
-        vm.prank(keeper);
-        _strategy.kickAuction(CRV);
-
-        // CRV should be sent to auction
-        assertEq(IERC20(CRV).balanceOf(address(trackableAuction)), 150e18, "CRV should be sent to auction");
-        assertEq(IERC20(CRV).balanceOf(address(strategy)), 0, "Strategy should have no CRV");
-    }
-
     // ==================== Minimum Amount Tests ====================
 
     function test_setMinAmountToSell() public requiresFork {
@@ -347,22 +287,20 @@ contract AuctionDoSProtectionTest is Test {
         assertEq(_strategy.minAmountToSell(CRV), 100e18, "Min amount should be set");
     }
 
-    function test_setAutoKickAuctions() public requiresFork {
-        vm.prank(management);
-        _strategy.setAutoKickAuctions(true);
-        assertTrue(_strategy.autoKickAuctions(), "Auto kick should be enabled");
-    }
-
     // ==================== Manual Kick Tests ====================
 
-    function test_kickAuction() public requiresFork {
-        deal(CRV, address(strategy), 100e18);
+    function test_kickAuction_permissionless() public requiresFork {
+        // Set threshold
+        vm.prank(management);
+        _strategy.setMinAmountToSell(CRV, 100e18);
 
-        // Keeper can kick
+        deal(CRV, address(strategy), 150e18);
+
+        // Keeper can kick when threshold is met
         vm.prank(keeper);
         _strategy.kickAuction(CRV);
 
-        assertEq(IERC20(CRV).balanceOf(address(auction)), 100e18, "CRV should be sent to auction");
+        assertEq(IERC20(CRV).balanceOf(address(auction)), 150e18, "CRV should be sent to auction");
     }
 
     function test_kickAuction_cannotKickAsset() public requiresFork {
@@ -371,9 +309,25 @@ contract AuctionDoSProtectionTest is Test {
         _strategy.kickAuction(CVXCRV);
     }
 
-    function test_kickAuction_requiresBalance() public requiresFork {
+    function test_kickAuction_requiresThreshold() public requiresFork {
+        // No threshold set
+        deal(CRV, address(strategy), 100e18);
+
         vm.prank(keeper);
-        vm.expectRevert("No tokens to auction");
+        vm.expectRevert("Below threshold");
+        _strategy.kickAuction(CRV);
+    }
+
+    function test_kickAuction_requiresBalanceAboveThreshold() public requiresFork {
+        // Set threshold
+        vm.prank(management);
+        _strategy.setMinAmountToSell(CRV, 100e18);
+
+        // Balance below threshold
+        deal(CRV, address(strategy), 50e18);
+
+        vm.prank(keeper);
+        vm.expectRevert("Below threshold");
         _strategy.kickAuction(CRV);
     }
 
@@ -385,7 +339,6 @@ contract AuctionDoSProtectionTest is Test {
         _strategy.setMinAmountToSell(CRV, 100e18);
         _strategy.setMinAmountToSell(CVX, 50e18);
         _strategy.setMinAmountToSell(CRVUSD, 100e18);
-        _strategy.setAutoKickAuctions(true);
         vm.stopPrank();
 
         // Attacker tries to grief with dust amounts
@@ -408,6 +361,12 @@ contract AuctionDoSProtectionTest is Test {
         assertFalse(shouldTriggerCVX, "CVX dust should not trigger");
         assertFalse(shouldTriggerCRVUSD, "crvUSD dust should not trigger");
 
+        // Attacker cannot kick because not a keeper
+        vm.startPrank(attacker);
+        vm.expectRevert();
+        _strategy.kickAuction(CRV);
+        vm.stopPrank();
+
         // Dust remains in strategy (not sent to auction)
         assertEq(IERC20(CRV).balanceOf(address(strategy)), 1, "CRV dust should remain");
         assertEq(IERC20(CVX).balanceOf(address(strategy)), 1, "CVX dust should remain");
@@ -419,7 +378,6 @@ contract AuctionDoSProtectionTest is Test {
         vm.startPrank(management);
         _strategy.setMinAmountToSell(CRV, 100e18);
         _strategy.setMinAmountToSell(CVX, 50e18);
-        _strategy.setAutoKickAuctions(true);
         vm.stopPrank();
 
         // Give strategy rewards above threshold
@@ -433,7 +391,7 @@ contract AuctionDoSProtectionTest is Test {
         assertTrue(shouldTriggerCRV, "CRV should trigger");
         assertTrue(shouldTriggerCVX, "CVX should trigger");
 
-        // Manually kick both auctions
+        // Keeper can kick both auctions
         vm.startPrank(keeper);
         _strategy.kickAuction(CRV);
         _strategy.kickAuction(CVX);
@@ -442,5 +400,23 @@ contract AuctionDoSProtectionTest is Test {
         // Both tokens sent to auction
         assertEq(IERC20(CRV).balanceOf(address(auction)), 200e18, "CRV should be auctioned");
         assertEq(IERC20(CVX).balanceOf(address(auction)), 100e18, "CVX should be auctioned");
+    }
+
+    // ==================== Registry Verification Tests ====================
+
+    function test_setAuction_requiresOfficialAuction() public requiresFork {
+        // Create unofficial auction (not in registry)
+        MockAuction unofficialAuction = new MockAuction(CVXCRV, address(strategy));
+
+        vm.prank(management);
+        vm.expectRevert("Auction not from official factory");
+        _strategy.setAuction(address(unofficialAuction));
+    }
+
+    function test_setAuction_allowsZeroAddress() public requiresFork {
+        // Should be able to unset auction
+        vm.prank(management);
+        _strategy.setAuction(address(0));
+        assertEq(_strategy.auction(), address(0), "Should unset auction");
     }
 }

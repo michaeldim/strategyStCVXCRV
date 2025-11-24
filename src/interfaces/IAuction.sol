@@ -16,4 +16,9 @@ interface IAuction {
     /// @param _token Address of the token to auction
     /// @return id ID of the auction
     function kick(address _token) external returns (uint256);
+
+    /// @notice Returns the amount available to kick for a token
+    /// @param _token Address of the token to check
+    /// @return Amount kickable (0 if auction is active or no balance)
+    function kickable(address _token) external view returns (uint256);
 }

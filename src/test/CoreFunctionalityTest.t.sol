@@ -81,11 +81,23 @@ contract CoreFunctionalityTest is Setup {
     function test_SwapConfigurationManagement() public {
         // Mock an auction contract
         address mockAuction = makeAddr("mockAuction");
+        address mockFactory = makeAddr("mockFactory");
+        address mockRegistry = address(testStrategy.AUCTION_REGISTRY());
 
         // Configure the mock auction
         vm.mockCall(mockAuction, abi.encodeWithSignature("want()"), abi.encode(address(cvxCrv)));
 
         vm.mockCall(mockAuction, abi.encodeWithSignature("receiver()"), abi.encode(address(testStrategy)));
+
+        // Mock registry to return our factory
+        address[] memory factories = new address[](1);
+        factories[0] = mockFactory;
+        vm.mockCall(mockRegistry, abi.encodeWithSignature("getAllFactories()"), abi.encode(factories));
+
+        // Mock factory to return our auction
+        address[] memory auctions = new address[](1);
+        auctions[0] = mockAuction;
+        vm.mockCall(mockFactory, abi.encodeWithSignature("getAllAuctions()"), abi.encode(auctions));
 
         // Set the auction
         vm.startPrank(management);
