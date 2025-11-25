@@ -28,32 +28,6 @@ contract MockAuction {
     }
 }
 
-// Mock registry that returns our mock factory
-contract MockAuctionRegistry {
-    address[] public factories;
-
-    function addFactory(address factory) external {
-        factories.push(factory);
-    }
-
-    function getAllFactories() external view returns (address[] memory) {
-        return factories;
-    }
-}
-
-// Mock factory that returns our mock auctions
-contract MockAuctionFactory {
-    address[] public auctions;
-
-    function addAuction(address auction) external {
-        auctions.push(auction);
-    }
-
-    function getAllAuctions() external view returns (address[] memory) {
-        return auctions;
-    }
-}
-
 contract AuctionDoSProtectionTest is Test {
     StCVXCRVStrategy internal _strategy;
     ITokenizedStrategy public strategy;
@@ -68,8 +42,6 @@ contract AuctionDoSProtectionTest is Test {
     address constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
 
     MockAuction public auction;
-    MockAuctionRegistry public mockRegistry;
-    MockAuctionFactory public mockFactory;
 
     bool public isForkTest;
 
@@ -115,11 +87,6 @@ contract AuctionDoSProtectionTest is Test {
         management = makeAddr("management");
         keeper = makeAddr("keeper");
         attacker = makeAddr("attacker");
-
-        // Deploy mock registry and factory
-        mockRegistry = new MockAuctionRegistry();
-        mockFactory = new MockAuctionFactory();
-        mockRegistry.addFactory(address(mockFactory));
 
         // Deploy strategy as management (which automatically makes deployer the management)
         vm.startPrank(management);
@@ -174,24 +141,8 @@ contract AuctionDoSProtectionTest is Test {
             abi.encode(CRVUSD, uint8(0), uint128(0), uint128(0))
         );
 
-        // Setup auction and register it
+        // Setup auction (no registry verification needed - trust management)
         auction = new MockAuction(CVXCRV, address(strategy));
-        mockFactory.addAuction(address(auction));
-
-        // Mock the registry call to return our mock registry
-        vm.mockCall(
-            address(_strategy.AUCTION_REGISTRY()),
-            abi.encodeWithSelector(bytes4(keccak256("getAllFactories()"))),
-            abi.encode(mockRegistry.getAllFactories())
-        );
-
-        // Mock the factory call to return our auction
-        vm.mockCall(
-            address(mockFactory),
-            abi.encodeWithSelector(bytes4(keccak256("getAllAuctions()"))),
-            abi.encode(mockFactory.getAllAuctions())
-        );
-
         _strategy.setAuction(address(auction));
 
         // Add keeper
@@ -402,16 +353,7 @@ contract AuctionDoSProtectionTest is Test {
         assertEq(IERC20(CVX).balanceOf(address(auction)), 100e18, "CVX should be auctioned");
     }
 
-    // ==================== Registry Verification Tests ====================
-
-    function test_setAuction_requiresOfficialAuction() public requiresFork {
-        // Create unofficial auction (not in registry)
-        MockAuction unofficialAuction = new MockAuction(CVXCRV, address(strategy));
-
-        vm.prank(management);
-        vm.expectRevert("Auction not from official factory");
-        _strategy.setAuction(address(unofficialAuction));
-    }
+    // ==================== Auction Configuration Tests ====================
 
     function test_setAuction_allowsZeroAddress() public requiresFork {
         // Should be able to unset auction

@@ -23,47 +23,23 @@ contract SimpleStrategyTest is Test {
     function testManualAuctionKicking() public {
         // Test that manual auction kicking works without reward token tracking
 
-        // Set up a mock auction
-        address mockAuction = address(new MockAuction());
-
-        // Mock the registry and factory
-        address mockFactory = makeAddr("mockFactory");
-        address registry = address(strategy.AUCTION_REGISTRY());
-
-        address[] memory factories = new address[](1);
-        factories[0] = mockFactory;
-        vm.mockCall(registry, abi.encodeWithSignature("getAllFactories()"), abi.encode(factories));
-
-        address[] memory auctions = new address[](1);
-        auctions[0] = mockAuction;
-        vm.mockCall(mockFactory, abi.encodeWithSignature("getAllAuctions()"), abi.encode(auctions));
+        // Set up a mock auction that returns correct want/receiver
+        MockAuction mockAuction = new MockAuction(address(strategy));
 
         vm.startPrank(address(this)); // Use test contract as management for simplicity
-        strategy.setAuction(mockAuction);
+        strategy.setAuction(address(mockAuction));
         vm.stopPrank();
 
         // Test that auction is set
-        assertEq(strategy.auction(), mockAuction);
+        assertEq(strategy.auction(), address(mockAuction));
     }
     
     function testKickAuctionForToken() public {
         // Test kicking an auction for a specific token
-        address mockAuction = address(new MockAuction());
-
-        // Mock the registry and factory
-        address mockFactory = makeAddr("mockFactory");
-        address registry = address(strategy.AUCTION_REGISTRY());
-
-        address[] memory factories = new address[](1);
-        factories[0] = mockFactory;
-        vm.mockCall(registry, abi.encodeWithSignature("getAllFactories()"), abi.encode(factories));
-
-        address[] memory auctions = new address[](1);
-        auctions[0] = mockAuction;
-        vm.mockCall(mockFactory, abi.encodeWithSignature("getAllAuctions()"), abi.encode(auctions));
+        MockAuction mockAuction = new MockAuction(address(strategy));
 
         vm.startPrank(address(this)); // Use test contract as management for simplicity
-        strategy.setAuction(mockAuction);
+        strategy.setAuction(address(mockAuction));
         strategy.setMinAmountToSell(CRV, 50e18); // Set minimum threshold
         vm.stopPrank();
 
@@ -79,15 +55,20 @@ contract SimpleStrategyTest is Test {
 // Mock auction for testing
 contract MockAuction is IAuction {
     address public constant CVXCRV = 0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7;
-    
+    address public immutable _receiver;
+
+    constructor(address receiver_) {
+        _receiver = receiver_;
+    }
+
     function want() external pure returns (address) {
         return CVXCRV;
     }
-    
+
     function receiver() external view returns (address) {
-        return msg.sender;
+        return _receiver;
     }
-    
+
     function kick(address) external pure returns (uint256) {
         return 1;
     }

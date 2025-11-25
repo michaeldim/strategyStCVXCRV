@@ -7,7 +7,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ICvxCrvStakingWrapper} from "./interfaces/ICvxCrvStakingWrapper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAuction} from "./interfaces/IAuction.sol";
-import {IAuctionRegistry, IAuctionFactory} from "./interfaces/IAuctionRegistry.sol";
 import {IAuctionSwapper} from "@periphery/swappers/interfaces/IAuctionSwapper.sol";
 
 /**
@@ -19,7 +18,6 @@ contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
 
     // --- Constants ---
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
-    IAuctionRegistry public constant AUCTION_REGISTRY = IAuctionRegistry(0x94F44706A61845a4f9e59c4Bc08cEA4503e48D12);
     address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15;
 
     // --- Auction state ---
@@ -77,7 +75,7 @@ contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
         _claimRewards();
 
         uint256 assetBal = asset.balanceOf(address(this));
-        if (assetBal > 0 && !TokenizedStrategy.isShutdown()) {
+        if (assetBal > 0 && !TokenizedStrategy.isShutdown() && !WRAPPER.isShutdown()) {
             _deployFunds(assetBal);
         }
 
@@ -109,31 +107,11 @@ contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
      */
     function setAuction(address _auction) external onlyManagement {
         if (_auction != address(0)) {
-            require(_isOfficialAuction(_auction), "Auction not from official factory");
             require(IAuction(_auction).want() == address(asset), "Auction want must be asset");
             require(IAuction(_auction).receiver() == address(this), "Auction receiver must be strategy");
         }
 
         auction = _auction;
-    }
-
-    /**
-     * @dev Verifies an auction was deployed from an official factory in the registry
-     * @param _auction Address to verify
-     * @return True if auction is from an official factory
-     */
-    function _isOfficialAuction(address _auction) internal view returns (bool) {
-        address[] memory factories = AUCTION_REGISTRY.getAllFactories();
-
-        for (uint256 i = 0; i < factories.length; i++) {
-            address[] memory auctions = IAuctionFactory(factories[i]).getAllAuctions();
-            for (uint256 j = 0; j < auctions.length; j++) {
-                if (auctions[j] == _auction) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**
@@ -211,11 +189,11 @@ contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
         if (auction == address(0)) return 0;
         if (_token == address(asset) || _token == address(WRAPPER)) return 0;
 
-        uint256 balance = IERC20(_token).balanceOf(address(this));
         uint256 minAmount = minAmountToSell[_token];
+        if (minAmount == 0) return 0;
 
-        // Return 0 if below threshold or threshold not set
-        if (minAmount == 0 || balance < minAmount) return 0;
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        if (balance < minAmount) return 0;
 
         // Check if auction contract is ready (no active auction)
         if (IAuction(auction).kickable(_token) == 0) return 0;
@@ -238,14 +216,12 @@ contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
             return (false, bytes("Invalid token"));
         }
 
-        uint256 balance = IERC20(_from).balanceOf(address(this));
         uint256 minAmount = minAmountToSell[_from];
-
-        // If minAmount is 0, treat as disabled to prevent dust attacks
         if (minAmount == 0) {
             return (false, bytes("Min amount not set"));
         }
 
+        uint256 balance = IERC20(_from).balanceOf(address(this));
         if (balance < minAmount) {
             return (false, bytes("Below min amount"));
         }

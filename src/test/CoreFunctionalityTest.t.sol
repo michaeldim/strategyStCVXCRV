@@ -81,34 +81,18 @@ contract CoreFunctionalityTest is Setup {
     function test_SwapConfigurationManagement() public {
         // Mock an auction contract
         address mockAuction = makeAddr("mockAuction");
-        address mockFactory = makeAddr("mockFactory");
-        address mockRegistry = address(testStrategy.AUCTION_REGISTRY());
 
-        // Configure the mock auction
+        // Configure the mock auction to return correct want and receiver
         vm.mockCall(mockAuction, abi.encodeWithSignature("want()"), abi.encode(address(cvxCrv)));
-
         vm.mockCall(mockAuction, abi.encodeWithSignature("receiver()"), abi.encode(address(testStrategy)));
 
-        // Mock registry to return our factory
-        address[] memory factories = new address[](1);
-        factories[0] = mockFactory;
-        vm.mockCall(mockRegistry, abi.encodeWithSignature("getAllFactories()"), abi.encode(factories));
-
-        // Mock factory to return our auction
-        address[] memory auctions = new address[](1);
-        auctions[0] = mockAuction;
-        vm.mockCall(mockFactory, abi.encodeWithSignature("getAllAuctions()"), abi.encode(auctions));
-
-        // Set the auction
+        // Set the auction (management trusted to set valid auction)
         vm.startPrank(management);
         testStrategy.setAuction(mockAuction);
         vm.stopPrank();
 
         // Verify auction is set
         assertEq(testStrategy.auction(), mockAuction, "Auction address should be set");
-
-        // Auction-only mode now - no swap type setting needed
-        // All reward tokens automatically use auction
     }
 
     function test_DeployFunds() public {
