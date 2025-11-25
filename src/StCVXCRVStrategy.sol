@@ -16,11 +16,12 @@ import {IAuctionRegistry, IAuctionFactory} from "./interfaces/IAuctionRegistry.s
 contract StCVXCRVStrategy is BaseStrategy {
     using SafeERC20 for IERC20;
 
-    // --- Strategy state ---
+    // --- Constants ---
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
-
-    // --- Auction configuration ---
     IAuctionRegistry public constant AUCTION_REGISTRY = IAuctionRegistry(0x94F44706A61845a4f9e59c4Bc08cEA4503e48D12);
+    address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15;
+
+    // --- Auction state ---
     address public auction;
     mapping(address => uint256) public minAmountToSell;
 
@@ -180,9 +181,6 @@ contract StCVXCRVStrategy is BaseStrategy {
     // -----------------------------------------------------------------------
     // Auction Management (IAuctionSwapper compatible)
     // -----------------------------------------------------------------------
-
-    /// @notice The auction factory used to deploy auctions
-    address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15;
 
     /**
      * @notice Returns whether this strategy uses auctions for token swaps
