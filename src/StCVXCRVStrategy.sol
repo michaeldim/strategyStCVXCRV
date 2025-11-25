@@ -8,12 +8,13 @@ import {ICvxCrvStakingWrapper} from "./interfaces/ICvxCrvStakingWrapper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAuction} from "./interfaces/IAuction.sol";
 import {IAuctionRegistry, IAuctionFactory} from "./interfaces/IAuctionRegistry.sol";
+import {IAuctionSwapper} from "@periphery/swappers/interfaces/IAuctionSwapper.sol";
 
 /**
  * @title Staked cvxCRV Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
  */
-contract StCVXCRVStrategy is BaseStrategy {
+contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
     using SafeERC20 for IERC20;
 
     // --- Constants ---
