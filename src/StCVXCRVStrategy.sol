@@ -138,8 +138,9 @@ contract StCVXCRVStrategy is BaseStrategy {
      * @notice Kick an auction for a specific token
      * @dev Only keepers can call - set keeper to address(0) for permissionless
      * @param _token Token address to auction
+     * @return _auctionId The ID of the started auction
      */
-    function kickAuction(address _token) external onlyKeepers {
+    function kickAuction(address _token) external onlyKeepers returns (uint256 _auctionId) {
         require(auction != address(0), "No auction configured");
         require(_token != address(asset), "Cannot auction strategy asset");
         require(_token != address(WRAPPER), "Cannot auction wrapper");
@@ -150,7 +151,7 @@ contract StCVXCRVStrategy is BaseStrategy {
         require(minAmount > 0 && balance >= minAmount, "Below threshold");
 
         IERC20(_token).safeTransfer(auction, balance);
-        IAuction(auction).kick(_token);
+        return IAuction(auction).kick(_token);
     }
 
     // -----------------------------------------------------------------------
@@ -177,8 +178,20 @@ contract StCVXCRVStrategy is BaseStrategy {
     }
 
     // -----------------------------------------------------------------------
-    // Auction Management
+    // Auction Management (IAuctionSwapper compatible)
     // -----------------------------------------------------------------------
+
+    /// @notice The auction factory used to deploy auctions
+    address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15;
+
+    /**
+     * @notice Returns whether this strategy uses auctions for token swaps
+     * @dev Part of IAuctionSwapper interface
+     * @return True if an auction is configured
+     */
+    function useAuction() external view returns (bool) {
+        return auction != address(0);
+    }
 
     /**
      * @notice Set minimum amount for a token to be auctioned
@@ -187,6 +200,28 @@ contract StCVXCRVStrategy is BaseStrategy {
      */
     function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
         minAmountToSell[_token] = _minAmount;
+    }
+
+    /**
+     * @notice Returns how much of a token can be kicked into auction
+     * @dev Part of IAuctionSwapper interface - returns 0 if below minAmountToSell
+     * @param _token The token to check
+     * @return The amount available to kick, or 0 if below threshold
+     */
+    function kickable(address _token) external view returns (uint256) {
+        if (auction == address(0)) return 0;
+        if (_token == address(asset) || _token == address(WRAPPER)) return 0;
+
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        uint256 minAmount = minAmountToSell[_token];
+
+        // Return 0 if below threshold or threshold not set
+        if (minAmount == 0 || balance < minAmount) return 0;
+
+        // Check if auction contract is ready (no active auction)
+        if (IAuction(auction).kickable(_token) == 0) return 0;
+
+        return balance;
     }
 
     /**
