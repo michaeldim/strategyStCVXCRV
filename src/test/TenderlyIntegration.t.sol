@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import {Test, console} from "forge-std/Test.sol";
-import {StCVXCRVStrategy} from "../StCVXCRVStrategy.sol";
+import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
 import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -32,7 +32,7 @@ interface IVault {
 
 /**
  * @title Tenderly Virtual TestNet Integration Test
- * @notice This test deploys the StCVXCRVStrategy to a Tenderly Virtual TestNet and verifies integration
+ * @notice This test deploys the ConvexStkCvxCrvStrategy to a Tenderly Virtual TestNet and verifies integration
  * @dev This test should be run with `--match-test testTenderlyIntegration` and the RPC URL set to the Tenderly TestNet
  */
 contract TenderlyIntegrationTest is Test {
@@ -62,7 +62,7 @@ contract TenderlyIntegrationTest is Test {
     uint256 constant TEST_DEPOSIT_AMOUNT = 10 * 1e18; // 10 cvxCRV
 
     // Contract instances
-    StCVXCRVStrategy public strategy;
+    ConvexStkCvxCrvStrategy public strategy;
     StrategyAprOracle public aprOracle;
     IVault public vault;
     IERC20 public cvxCrvToken;
@@ -137,7 +137,7 @@ contract TenderlyIntegrationTest is Test {
 
         // STEP 2: Deploy Strategy
         console.log("Deploying Strategy...");
-        strategy = new StCVXCRVStrategy(CVXCRV_TOKEN_ADDRESS, STRATEGY_NAME);
+        strategy = new ConvexStkCvxCrvStrategy(CVXCRV_TOKEN_ADDRESS, STRATEGY_NAME);
         strategyAddress = address(strategy);
         console.log("Strategy deployed at:", strategyAddress);
 

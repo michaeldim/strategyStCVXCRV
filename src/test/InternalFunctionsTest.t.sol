@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import {Test} from "forge-std/Test.sol";
-import {StCVXCRVStrategy} from "../StCVXCRVStrategy.sol";
+import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
 import {TestStrategy} from "./TestStrategy.sol";
 import {console} from "forge-std/console.sol";
 import {MockERC20} from "./utils/MockERC20.sol";

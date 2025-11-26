@@ -3,7 +3,7 @@ pragma solidity ^0.8.18;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {StCVXCRVStrategy} from "../StCVXCRVStrategy.sol"; // Updated import
+import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol"; // Updated import
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICvxCrvStakingWrapper} from "../interfaces/ICvxCrvStakingWrapper.sol"; // Corrected path
 import {ITokenizedStrategy} from "../../lib/tokenized-strategy/src/interfaces/ITokenizedStrategy.sol";
@@ -14,12 +14,12 @@ import {MockERC20} from "./utils/MockERC20.sol";
  * @notice A modified version of the Strategy that exposes the _harvestAndReport
  * function without relying on TokenizedStrategy for isShutdown checks
  */
-contract ForkedFixedStrategy is StCVXCRVStrategy {
+contract ForkedFixedStrategy is ConvexStkCvxCrvStrategy {
     bool public mockIsShutdown = false;
     uint256 public constant INITIAL_DEPOSIT = 100e18;
 
-    // Updated constructor to match the simplified StCVXCRVStrategy constructor
-    constructor(address _asset, string memory _name) StCVXCRVStrategy(_asset, _name) {}
+    // Updated constructor to match the simplified ConvexStkCvxCrvStrategy constructor
+    constructor(address _asset, string memory _name) ConvexStkCvxCrvStrategy(_asset, _name) {}
 
     // This function is no longer needed as we manually add reward tokens
     // in the _setupAndTestStrategy function

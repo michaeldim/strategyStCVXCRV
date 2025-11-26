@@ -13,7 +13,7 @@ import {IAuctionSwapper} from "@periphery/swappers/interfaces/IAuctionSwapper.so
  * @title Staked cvxCRV Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
  */
-contract StCVXCRVStrategy is BaseStrategy, IAuctionSwapper {
+contract ConvexStkCvxCrvStrategy is BaseStrategy, IAuctionSwapper {
     using SafeERC20 for IERC20;
 
     // --- Constants ---

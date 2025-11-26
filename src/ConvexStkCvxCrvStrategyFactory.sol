@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import {StCVXCRVStrategy} from "./StCVXCRVStrategy.sol";
+import {ConvexStkCvxCrvStrategy} from "./ConvexStkCvxCrvStrategy.sol";
 import {ITokenizedStrategy} from "@tokenized-strategy/interfaces/ITokenizedStrategy.sol";
 
 /**
- * @title StCVXCRVStrategyFactory
- * @notice Factory for deploying StCVXCRVStrategy contracts
+ * @title ConvexStkCvxCrvStrategyFactory
+ * @notice Factory for deploying ConvexStkCvxCrvStrategy contracts
  * @dev Deploys strategies with pre-configured management, keeper, and fee settings
  */
-contract StCVXCRVStrategyFactory {
+contract ConvexStkCvxCrvStrategyFactory {
     event NewStrategy(address indexed strategy, address indexed asset);
 
     address public immutable emergencyAdmin;
@@ -38,7 +38,7 @@ contract StCVXCRVStrategyFactory {
     }
 
     /**
-     * @notice Deploy a new StCVXCRVStrategy
+     * @notice Deploy a new ConvexStkCvxCrvStrategy
      * @param _asset The asset token (cvxCRV)
      * @param _name Name for the strategy
      * @return strategyAddress Address of the deployed strategy
@@ -51,7 +51,7 @@ contract StCVXCRVStrategyFactory {
         deployments[_asset] = address(1);
 
         // Deploy strategy
-        StCVXCRVStrategy strategy = new StCVXCRVStrategy(_asset, _name);
+        ConvexStkCvxCrvStrategy strategy = new ConvexStkCvxCrvStrategy(_asset, _name);
         strategyAddress = address(strategy);
 
         // Update deployment mapping

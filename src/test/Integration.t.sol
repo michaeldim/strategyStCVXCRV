@@ -3,7 +3,7 @@ pragma solidity ^0.8.18;
 
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
-import {StCVXCRVStrategy} from "../StCVXCRVStrategy.sol";
+import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
 import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -16,7 +16,7 @@ import {MockAuction} from "./utils/MockAuction.sol";
  */
 contract IntegrationTest is Test {
     // Components for testing
-    StCVXCRVStrategy strategy;
+    ConvexStkCvxCrvStrategy strategy;
     StrategyAprOracle oracle;
     MockAuction auction;
 
