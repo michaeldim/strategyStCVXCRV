@@ -10,7 +10,7 @@ import {IAuction} from "./interfaces/IAuction.sol";
 import {IAuctionSwapper} from "@periphery/swappers/interfaces/IAuctionSwapper.sol";
 
 /**
- * @title Staked cvxCRV Compounder
+ * @title Convex stkCvxCrv Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
  */
 contract ConvexStkCvxCrvStrategy is BaseStrategy, IAuctionSwapper {
