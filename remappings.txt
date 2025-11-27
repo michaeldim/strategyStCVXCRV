@@ -1,0 +1,12 @@
+@openzeppelin/=lib/openzeppelin-contracts/
+forge-std/=lib/forge-std/src/
+@tokenized-strategy/=lib/tokenized-strategy/src/
+@periphery/=lib/tokenized-strategy-periphery/src/
+@yearn-vaults/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/contracts/
+ds-test/=lib/tokenized-strategy-periphery/lib/forge-std/lib/ds-test/src/
+erc4626-tests/=lib/tokenized-strategy/lib/erc4626-tests/
+openzeppelin-contracts/=lib/openzeppelin-contracts/
+openzeppelin/=lib/openzeppelin-contracts/contracts/
+tokenized-strategy-periphery/=lib/tokenized-strategy-periphery/
+tokenized-strategy/=lib/tokenized-strategy/
+yearn-vaults-v3/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/
