@@ -18,7 +18,8 @@ contract ConvexStkCvxCrvStrategy is BaseStrategy, IAuctionSwapper {
 
     // --- Constants ---
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
-    address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15;
+    // solhint-disable-next-line const-name-snakecase
+    address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15; // Required by IAuctionSwapper
 
     // --- Auction state ---
     address public auction;
