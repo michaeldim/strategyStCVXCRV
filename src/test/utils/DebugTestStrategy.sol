@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
-import {ConvexStkCvxCrvStrategy} from "../../ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "../../CvxCrvCompounder.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ITradeFactory} from "@periphery/interfaces/TradeFactory/ITradeFactory.sol";
 
-contract DebugTestStrategy is ConvexStkCvxCrvStrategy {
+contract DebugTestStrategy is CvxCrvCompounder {
     bool public mockIsShutdown = false;
 
-    constructor(address _asset, string memory _name) ConvexStkCvxCrvStrategy(_asset, _name) {}
+    constructor(address _asset, string memory _name) CvxCrvCompounder(_asset, _name) {}
 
     function setMockShutdown(bool _isShutdown) external {
         mockIsShutdown = _isShutdown;

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import {ConvexStkCvxCrvStrategy} from "./ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "./CvxCrvCompounder.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
 
 /**
  * @title StrategyFactory
- * @notice Factory for deploying ConvexStkCvxCrvStrategy contracts
+ * @notice Factory for deploying CvxCrvCompounder contracts
  * @dev This contract is streamlined to focus solely on production strategy deployment
  */
 contract StrategyFactory {
@@ -47,7 +47,7 @@ contract StrategyFactory {
         // Create the strategy
         IStrategyInterface _newStrategy = IStrategyInterface(
             address(
-                new ConvexStkCvxCrvStrategy(
+                new CvxCrvCompounder(
                     _asset,
                     _name
                 )

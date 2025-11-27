@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
-import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "../CvxCrvCompounder.sol";
 import {IConvexBasicRewards} from "../interfaces/IConvexBasicRewards.sol";
 import {IConvexToken} from "../interfaces/IConvexToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";

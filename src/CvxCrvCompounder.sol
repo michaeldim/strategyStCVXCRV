@@ -13,7 +13,7 @@ import {AuctionSwapper, Auction} from "@periphery/swappers/AuctionSwapper.sol";
  * @title Convex stkCvxCrv Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
  */
-contract ConvexStkCvxCrvStrategy is BaseStrategy, AuctionSwapper {
+contract CvxCrvCompounder is BaseStrategy, AuctionSwapper {
     using SafeERC20 for IERC20;
 
     // --- Constants ---

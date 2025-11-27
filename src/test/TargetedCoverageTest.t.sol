@@ -3,12 +3,12 @@ pragma solidity ^0.8.18;
 
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
-import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "../CvxCrvCompounder.sol";
 import {MockERC20} from "./utils/MockERC20.sol";
 import {ICvxCrvStakingWrapper} from "../interfaces/ICvxCrvStakingWrapper.sol";
 
 /**
- * @notice This contract contains exact copies of the try/catch blocks from ConvexStkCvxCrvStrategy
+ * @notice This contract contains exact copies of the try/catch blocks from CvxCrvCompounder
  * to ensure we get coverage on those specific lines
  */
 contract TargetedCoverageTest is Test {

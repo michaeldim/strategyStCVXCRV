@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "../CvxCrvCompounder.sol";
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 import {ITokenizedStrategy} from "@tokenized-strategy/interfaces/ITokenizedStrategy.sol";
 import {IFactory} from "@tokenized-strategy/interfaces/IFactory.sol";
@@ -39,7 +39,7 @@ contract MockAuction {
 }
 
 contract AuctionDoSProtectionTest is Test {
-    ConvexStkCvxCrvStrategy internal _strategy;
+    CvxCrvCompounder internal _strategy;
     ITokenizedStrategy public strategy;
     address public management;
     address public keeper;
@@ -100,7 +100,7 @@ contract AuctionDoSProtectionTest is Test {
 
         // Deploy strategy as management (which automatically makes deployer the management)
         vm.startPrank(management);
-        _strategy = new ConvexStkCvxCrvStrategy(CVXCRV, "StCVXCRV Strategy");
+        _strategy = new CvxCrvCompounder(CVXCRV, "StCVXCRV Strategy");
         // Cast to ITokenizedStrategy as recommended by Yearn docs
         strategy = ITokenizedStrategy(address(_strategy));
 
@@ -234,7 +234,7 @@ contract AuctionDoSProtectionTest is Test {
     function test_auctionTrigger_noAuctionSet() public requiresFork {
         // Deploy new strategy without auction
         vm.prank(management);
-        ConvexStkCvxCrvStrategy newStrategy = new ConvexStkCvxCrvStrategy(CVXCRV, "Test");
+        CvxCrvCompounder newStrategy = new CvxCrvCompounder(CVXCRV, "Test");
 
         (bool shouldTrigger, bytes memory data) = newStrategy.auctionTrigger(CRV);
         assertFalse(shouldTrigger, "Should not trigger without auction");

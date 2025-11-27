@@ -2,12 +2,12 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/ConvexStkCvxCrvStrategy.sol";
+import "../src/CvxCrvCompounder.sol";
 import {Auction} from "@periphery/Auctions/AuctionFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract SimpleStrategyTest is Test {
-    ConvexStkCvxCrvStrategy public strategy;
+    CvxCrvCompounder public strategy;
     address public constant CVXCRV = 0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7;
     address public constant CRV = 0xD533a949740bb3306d119CC777fa900bA034cd52;
     address public constant CVX = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
@@ -25,7 +25,7 @@ contract SimpleStrategyTest is Test {
         }
 
         // Deploy strategy
-        strategy = new ConvexStkCvxCrvStrategy(CVXCRV, "Test cvxCRV Strategy");
+        strategy = new CvxCrvCompounder(CVXCRV, "Test cvxCRV Strategy");
     }
     
     function testManualAuctionKicking() public {
