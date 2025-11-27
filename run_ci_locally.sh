@@ -146,13 +146,13 @@ echo -e "${YELLOW}4. Running Slither security analysis...${NC}"
 # Check if slither is installed
 if command -v slither &> /dev/null; then
   # Using similar settings as GitHub workflow
-  echo -e "${YELLOW}Running Slither on StCVXCRVStrategy.sol...${NC}"
+  echo -e "${YELLOW}Running Slither on ConvexStkCvxCrvStrategy.sol...${NC}"
 
   # Remove any existing slither output to avoid the prevention of overwrite
   rm -f /tmp/slither_results.json
 
-  # Run on StCVXCRVStrategy.sol
-  slither src/StCVXCRVStrategy.sol --json /tmp/slither_results.json > /tmp/slither_check.log 2>&1
+  # Run on ConvexStkCvxCrvStrategy.sol
+  slither src/ConvexStkCvxCrvStrategy.sol --json /tmp/slither_results.json > /tmp/slither_check.log 2>&1
   SLITHER_EXIT_CODE=$?
 
   # Count number of medium or high findings
@@ -170,20 +170,20 @@ if command -v slither &> /dev/null; then
     [ -z "$MEDIUM_FINDINGS" ] && MEDIUM_FINDINGS=0
 
     if [ "$HIGH_FINDINGS" -gt 0 ]; then
-      echo -e "${RED}✗ Slither found $HIGH_FINDINGS high severity issues in StCVXCRVStrategy.sol${NC}"
+      echo -e "${RED}✗ Slither found $HIGH_FINDINGS high severity issues in ConvexStkCvxCrvStrategy.sol${NC}"
       SLITHER_FAILED=true
     elif [ $SLITHER_EXIT_CODE -ne 0 ]; then
-      echo -e "${RED}✗ Slither check on StCVXCRVStrategy.sol failed with exit code $SLITHER_EXIT_CODE${NC}"
+      echo -e "${RED}✗ Slither check on ConvexStkCvxCrvStrategy.sol failed with exit code $SLITHER_EXIT_CODE${NC}"
       SLITHER_FAILED=true
     else
-      echo -e "${GREEN}✓ Slither check on StCVXCRVStrategy.sol passed${NC}"
+      echo -e "${GREEN}✓ Slither check on ConvexStkCvxCrvStrategy.sol passed${NC}"
     fi
   else
     if [ $SLITHER_EXIT_CODE -ne 0 ]; then
-      echo -e "${RED}✗ Slither check on StCVXCRVStrategy.sol failed with exit code $SLITHER_EXIT_CODE${NC}"
+      echo -e "${RED}✗ Slither check on ConvexStkCvxCrvStrategy.sol failed with exit code $SLITHER_EXIT_CODE${NC}"
       SLITHER_FAILED=true
     else
-      echo -e "${GREEN}✓ Slither check on StCVXCRVStrategy.sol passed${NC}"
+      echo -e "${GREEN}✓ Slither check on ConvexStkCvxCrvStrategy.sol passed${NC}"
     fi
   fi
 else
@@ -236,13 +236,13 @@ if [ $build_exit -eq 0 ]; then
   echo -e "${GREEN}✓ Build successful${NC}"
   # Display contract sizes
   echo -e "${YELLOW}Contract sizes:${NC}"
-  grep "StCVXCRVStrategy" /tmp/build_output.log | head -n 3
+  grep "ConvexStkCvxCrvStrategy" /tmp/build_output.log | head -n 3
 elif grep -q "No files changed, compilation skipped" /tmp/build_output.log; then
   echo -e "${GREEN}✓ No files changed, compilation skipped${NC}"
   # Still display contract sizes if available
-  if grep -q "StCVXCRVStrategy" /tmp/build_output.log; then
+  if grep -q "ConvexStkCvxCrvStrategy" /tmp/build_output.log; then
     echo -e "${YELLOW}Contract sizes:${NC}"
-    grep "StCVXCRVStrategy" /tmp/build_output.log | head -n 3
+    grep "ConvexStkCvxCrvStrategy" /tmp/build_output.log | head -n 3
   fi
 else
   BUILD_FAILED=true

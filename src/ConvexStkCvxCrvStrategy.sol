@@ -6,24 +6,21 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ICvxCrvStakingWrapper} from "./interfaces/ICvxCrvStakingWrapper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IAuction} from "./interfaces/IAuction.sol";
-import {IAuctionSwapper} from "@periphery/swappers/interfaces/IAuctionSwapper.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {AuctionSwapper, Auction} from "@periphery/swappers/AuctionSwapper.sol";
 
 /**
  * @title Convex stkCvxCrv Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
  */
-contract ConvexStkCvxCrvStrategy is BaseStrategy, IAuctionSwapper {
+contract ConvexStkCvxCrvStrategy is BaseStrategy, AuctionSwapper {
     using SafeERC20 for IERC20;
 
     // --- Constants ---
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
-    // solhint-disable-next-line const-name-snakecase
-    address public constant auctionFactory = 0xd8e03D6D24d43c46c0f7f61327E391316E4f3c15; // Required by IAuctionSwapper
 
-    // --- Auction state ---
-    address public auction;
-    mapping(address => uint256) public minAmountToSell;
+    // --- Per-token auction thresholds ---
+    mapping(address => uint256) public tokenMinAmountToSell;
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -108,31 +105,18 @@ contract ConvexStkCvxCrvStrategy is BaseStrategy, IAuctionSwapper {
      */
     function setAuction(address _auction) external onlyManagement {
         if (_auction != address(0)) {
-            require(IAuction(_auction).want() == address(asset), "Auction want must be asset");
-            require(IAuction(_auction).receiver() == address(this), "Auction receiver must be strategy");
+            require(Auction(_auction).want() == address(asset), "Auction want must be asset");
         }
-
-        auction = _auction;
+        _setAuction(_auction);
     }
 
     /**
-     * @notice Kick an auction for a specific token
-     * @dev Only keepers can call - set keeper to address(0) for permissionless
-     * @param _token Token address to auction
-     * @return _auctionId The ID of the started auction
+     * @notice Set minimum amount for a token to be auctioned
+     * @param _token Token address
+     * @param _minAmount Minimum amount to trigger auction
      */
-    function kickAuction(address _token) external onlyKeepers returns (uint256 _auctionId) {
-        require(auction != address(0), "No auction configured");
-        require(_token != address(asset), "Cannot auction strategy asset");
-        require(_token != address(WRAPPER), "Cannot auction wrapper");
-
-        uint256 balance = IERC20(_token).balanceOf(address(this));
-        uint256 minAmount = minAmountToSell[_token];
-
-        require(minAmount > 0 && balance >= minAmount, "Below threshold");
-
-        IERC20(_token).safeTransfer(auction, balance);
-        return IAuction(auction).kick(_token);
+    function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
+        tokenMinAmountToSell[_token] = _minAmount;
     }
 
     // -----------------------------------------------------------------------
@@ -159,79 +143,64 @@ contract ConvexStkCvxCrvStrategy is BaseStrategy, IAuctionSwapper {
     }
 
     // -----------------------------------------------------------------------
-    // Auction Management (IAuctionSwapper compatible)
+    // Auction Overrides
     // -----------------------------------------------------------------------
 
     /**
-     * @notice Returns whether this strategy uses auctions for token swaps
-     * @dev Part of IAuctionSwapper interface
-     * @return True if an auction is configured
-     */
-    function useAuction() external view returns (bool) {
-        return auction != address(0);
-    }
-
-    /**
-     * @notice Set minimum amount for a token to be auctioned
-     * @param _token Token address
-     * @param _minAmount Minimum amount to trigger auction
-     */
-    function setMinAmountToSell(address _token, uint256 _minAmount) external onlyManagement {
-        minAmountToSell[_token] = _minAmount;
-    }
-
-    /**
-     * @notice Returns how much of a token can be kicked into auction
-     * @dev Part of IAuctionSwapper interface - returns 0 if below minAmountToSell
+     * @notice Override kickable to exclude asset/wrapper tokens and check per-token threshold
      * @param _token The token to check
-     * @return The amount available to kick, or 0 if below threshold
+     * @return The amount available to kick, or 0 if invalid token or below threshold
      */
-    function kickable(address _token) external view returns (uint256) {
-        if (auction == address(0)) return 0;
+    function kickable(address _token) public view override returns (uint256) {
         if (_token == address(asset) || _token == address(WRAPPER)) return 0;
 
-        uint256 minAmount = minAmountToSell[_token];
-        if (minAmount == 0) return 0;
+        uint256 _minAmount = tokenMinAmountToSell[_token];
+        if (_minAmount == 0) return 0;
 
-        uint256 balance = IERC20(_token).balanceOf(address(this));
-        if (balance < minAmount) return 0;
+        uint256 _kickable = super.kickable(_token);
+        if (_kickable < _minAmount) return 0;
 
-        // Check if auction contract is ready (no active auction)
-        if (IAuction(auction).kickable(_token) == 0) return 0;
-
-        return balance;
+        return _kickable;
     }
 
     /**
-     * @notice Check if an auction should be triggered for a specific token
+     * @notice Override auctionTrigger to exclude asset and wrapper tokens
      * @param _from The token to potentially auction
-     * @return Whether an auction should be kicked
-     * @return Calldata for the kick function or error message
+     * @return shouldKick Whether an auction should be kicked
+     * @return data Calldata for the kick function or error message
      */
-    function auctionTrigger(address _from) external view returns (bool, bytes memory) {
-        if (auction == address(0)) {
-            return (false, bytes("No auction set"));
-        }
-
+    function auctionTrigger(
+        address _from
+    ) external view override returns (bool shouldKick, bytes memory data) {
         if (_from == address(asset) || _from == address(WRAPPER)) {
             return (false, bytes("Invalid token"));
         }
 
-        uint256 minAmount = minAmountToSell[_from];
-        if (minAmount == 0) {
-            return (false, bytes("Min amount not set"));
+        address _auction = auction;
+        if (_auction == address(0)) {
+            return (false, bytes("No auction set"));
         }
 
-        uint256 balance = IERC20(_from).balanceOf(address(this));
-        if (balance < minAmount) {
-            return (false, bytes("Below min amount"));
+        if (!useAuction) {
+            return (false, bytes(
+                "Auctions disabled"));
         }
 
-        // Check if auction is kickable (no active auction)
-        if (IAuction(auction).kickable(_from) == 0) {
-            return (false, bytes("Auction not kickable"));
+        uint256 kickableAmount = kickable(_from);
+        if (kickableAmount == 0) {
+            return (false, bytes("not enough kickable"));
         }
 
         return (true, abi.encodeCall(this.kickAuction, (_from)));
+    }
+
+    /**
+     * @dev Override _kickAuction to add token validation
+     * @param _from The token to auction
+     */
+    function _kickAuction(address _from) internal override returns (uint256) {
+        require(_from != address(asset), "Cannot auction strategy asset");
+        require(_from != address(WRAPPER), "Cannot auction wrapper");
+        return super._kickAuction(_from);
     }
 }

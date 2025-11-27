@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "../src/ConvexStkCvxCrvStrategy.sol";
-import "../src/interfaces/IAuction.sol";
+import {Auction} from "@periphery/Auctions/AuctionFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract SimpleStrategyTest is Test {
@@ -13,9 +13,17 @@ contract SimpleStrategyTest is Test {
     address public constant CVX = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
     
     function setUp() public {
-        // Fork mainnet
-        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
-        
+        // Fork mainnet - use existing fork from --fork-url if available
+        if (block.chainid != 1) {
+            // Only create fork if not already on mainnet
+            string memory rpcUrl = vm.envOr("ETH_RPC_URL", string(""));
+            if (bytes(rpcUrl).length == 0) {
+                vm.skip(true);
+                return;
+            }
+            vm.createSelectFork(rpcUrl);
+        }
+
         // Deploy strategy
         strategy = new ConvexStkCvxCrvStrategy(CVXCRV, "Test cvxCRV Strategy");
     }
@@ -53,7 +61,7 @@ contract SimpleStrategyTest is Test {
 }
 
 // Mock auction for testing
-contract MockAuction is IAuction {
+contract MockAuction {
     address public constant CVXCRV = 0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7;
     address public immutable _receiver;
 
@@ -69,11 +77,19 @@ contract MockAuction is IAuction {
         return _receiver;
     }
 
-    function kick(address) external pure returns (uint256) {
-        return 1;
+    function kick(address _token) external view returns (uint256) {
+        return IERC20(_token).balanceOf(address(this));
     }
 
     function kickable(address) external pure returns (uint256) {
         return type(uint256).max;
+    }
+
+    function isActive(address) external pure returns (bool) {
+        return false;
+    }
+
+    function available(address) external pure returns (uint256) {
+        return 0;
     }
 }
