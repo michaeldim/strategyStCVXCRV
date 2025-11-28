@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import {Test} from "forge-std/Test.sol";
-import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "../CvxCrvCompounder.sol";
 import {TestStrategy} from "./TestStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Setup} from "./utils/Setup.sol";

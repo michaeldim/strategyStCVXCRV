@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
-import "../ConvexStkCvxCrvStrategy.sol";
+import "../CvxCrvCompounder.sol";
 
 /// @notice Test-only subclass to expose internal harvest logic for testing
-contract TestStrategy is ConvexStkCvxCrvStrategy {
+contract TestStrategy is CvxCrvCompounder {
     // Mock boolean flags to control behavior
     bool public mockIsShutdown = false;
     bool public mockIsKeeper = false;
 
-    constructor(address _asset, string memory _name) ConvexStkCvxCrvStrategy(_asset, _name) {}
+    constructor(address _asset, string memory _name) CvxCrvCompounder(_asset, _name) {}
 
     // Helper to identify this as a test contract
     function isMock() external pure returns (bool) {

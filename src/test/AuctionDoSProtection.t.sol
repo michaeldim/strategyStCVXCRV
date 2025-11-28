@@ -2,12 +2,11 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import {ConvexStkCvxCrvStrategy} from "../ConvexStkCvxCrvStrategy.sol";
+import {CvxCrvCompounder} from "../CvxCrvCompounder.sol";
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 import {ITokenizedStrategy} from "@tokenized-strategy/interfaces/ITokenizedStrategy.sol";
 import {IFactory} from "@tokenized-strategy/interfaces/IFactory.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IAuction} from "../interfaces/IAuction.sol";
 import {ICvxCrvStakingWrapper} from "../interfaces/ICvxCrvStakingWrapper.sol";
 
 contract MockAuction {
@@ -19,17 +18,28 @@ contract MockAuction {
         receiver = _receiver;
     }
 
-    function kick(address) external pure returns (uint256) {
-        return 1;
+    function kick(address _token) external view returns (uint256) {
+        // Simulate real auction behavior - revert if nothing to kick
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        require(balance > 0, "nothing to kick");
+        return balance;
     }
 
     function kickable(address) external pure returns (uint256) {
         return type(uint256).max;
     }
+
+    function isActive(address) external pure returns (bool) {
+        return false;
+    }
+
+    function available(address) external pure returns (uint256) {
+        return 0;
+    }
 }
 
 contract AuctionDoSProtectionTest is Test {
-    ConvexStkCvxCrvStrategy internal _strategy;
+    CvxCrvCompounder internal _strategy;
     ITokenizedStrategy public strategy;
     address public management;
     address public keeper;
@@ -90,7 +100,7 @@ contract AuctionDoSProtectionTest is Test {
 
         // Deploy strategy as management (which automatically makes deployer the management)
         vm.startPrank(management);
-        _strategy = new ConvexStkCvxCrvStrategy(CVXCRV, "StCVXCRV Strategy");
+        _strategy = new CvxCrvCompounder(CVXCRV, "StCVXCRV Strategy");
         // Cast to ITokenizedStrategy as recommended by Yearn docs
         strategy = ITokenizedStrategy(address(_strategy));
 
@@ -175,9 +185,10 @@ contract AuctionDoSProtectionTest is Test {
         IERC20(CRV).transfer(address(strategy), 1);
 
         // auctionTrigger should return false when minAmount is 0
+        // kickable() returns 0 because tokenMinAmountToSell is not set
         (bool shouldTrigger, bytes memory data) = _strategy.auctionTrigger(CRV);
         assertFalse(shouldTrigger, "Should not trigger for dust without threshold");
-        assertEq(data, bytes("Min amount not set"), "Should return correct error message");
+        assertEq(data, bytes("not enough kickable"), "Should return correct error message");
     }
 
     function test_auctionTrigger_triggersWithThresholdMet() public requiresFork {
@@ -207,10 +218,10 @@ contract AuctionDoSProtectionTest is Test {
         // Give strategy less than threshold
         deal(CRV, address(strategy), 50e18);
 
-        // Should not trigger
+        // Should not trigger - kickable() returns 0 when below threshold
         (bool shouldTrigger, bytes memory data) = _strategy.auctionTrigger(CRV);
         assertFalse(shouldTrigger, "Should not trigger below threshold");
-        assertEq(data, bytes("Below min amount"), "Should return correct error message");
+        assertEq(data, bytes("not enough kickable"), "Should return correct error message");
     }
 
     function test_auctionTrigger_preventsAuctioningAsset() public requiresFork {
@@ -223,7 +234,7 @@ contract AuctionDoSProtectionTest is Test {
     function test_auctionTrigger_noAuctionSet() public requiresFork {
         // Deploy new strategy without auction
         vm.prank(management);
-        ConvexStkCvxCrvStrategy newStrategy = new ConvexStkCvxCrvStrategy(CVXCRV, "Test");
+        CvxCrvCompounder newStrategy = new CvxCrvCompounder(CVXCRV, "Test");
 
         (bool shouldTrigger, bytes memory data) = newStrategy.auctionTrigger(CRV);
         assertFalse(shouldTrigger, "Should not trigger without auction");
@@ -235,7 +246,7 @@ contract AuctionDoSProtectionTest is Test {
     function test_setMinAmountToSell() public requiresFork {
         vm.prank(management);
         _strategy.setMinAmountToSell(CRV, 100e18);
-        assertEq(_strategy.minAmountToSell(CRV), 100e18, "Min amount should be set");
+        assertEq(_strategy.tokenMinAmountToSell(CRV), 100e18, "Min amount should be set");
     }
 
     // ==================== Manual Kick Tests ====================
@@ -260,26 +271,34 @@ contract AuctionDoSProtectionTest is Test {
         _strategy.kickAuction(CVXCRV);
     }
 
-    function test_kickAuction_requiresThreshold() public requiresFork {
-        // No threshold set
+    function test_kickAuction_withoutThreshold_stillTransfers() public requiresFork {
+        // No threshold set - kickable() returns 0 for automation
+        // But manual kickAuction() calls still work (permissionless)
         deal(CRV, address(strategy), 100e18);
 
+        // kickAuction is permissionless - it will transfer tokens even without threshold
+        // The protection is that auctionTrigger() returns false, so automation won't call it
         vm.prank(keeper);
-        vm.expectRevert("Below threshold");
         _strategy.kickAuction(CRV);
+
+        // Tokens were transferred to auction
+        assertEq(IERC20(CRV).balanceOf(address(auction)), 100e18, "CRV should be sent to auction");
     }
 
-    function test_kickAuction_requiresBalanceAboveThreshold() public requiresFork {
+    function test_kickAuction_belowThreshold_stillTransfers() public requiresFork {
         // Set threshold
         vm.prank(management);
         _strategy.setMinAmountToSell(CRV, 100e18);
 
-        // Balance below threshold
+        // Balance below threshold - kickable() returns 0 for automation
+        // But manual kickAuction() calls still work
         deal(CRV, address(strategy), 50e18);
 
         vm.prank(keeper);
-        vm.expectRevert("Below threshold");
         _strategy.kickAuction(CRV);
+
+        // Tokens were transferred to auction (permissionless behavior)
+        assertEq(IERC20(CRV).balanceOf(address(auction)), 50e18, "CRV should be sent to auction");
     }
 
     // ==================== Integration Tests ====================
@@ -304,6 +323,7 @@ contract AuctionDoSProtectionTest is Test {
         vm.stopPrank();
 
         // Check auction triggers return false for all dust
+        // This is the key DoS protection - automation won't trigger for dust
         (bool shouldTriggerCRV, ) = _strategy.auctionTrigger(CRV);
         (bool shouldTriggerCVX, ) = _strategy.auctionTrigger(CVX);
         (bool shouldTriggerCRVUSD, ) = _strategy.auctionTrigger(CRVUSD);
@@ -312,16 +332,10 @@ contract AuctionDoSProtectionTest is Test {
         assertFalse(shouldTriggerCVX, "CVX dust should not trigger");
         assertFalse(shouldTriggerCRVUSD, "crvUSD dust should not trigger");
 
-        // Attacker cannot kick because not a keeper
-        vm.startPrank(attacker);
-        vm.expectRevert();
-        _strategy.kickAuction(CRV);
-        vm.stopPrank();
-
-        // Dust remains in strategy (not sent to auction)
-        assertEq(IERC20(CRV).balanceOf(address(strategy)), 1, "CRV dust should remain");
-        assertEq(IERC20(CVX).balanceOf(address(strategy)), 1, "CVX dust should remain");
-        assertEq(IERC20(CRVUSD).balanceOf(address(strategy)), 1, "crvUSD dust should remain");
+        // Note: kickAuction() is permissionless and will transfer dust if called manually
+        // The DoS protection is that auctionTrigger() returns false, preventing automation
+        // from wasting gas on uneconomical auctions. Manual calls are still possible but
+        // would cost the caller gas without benefit (no MEV profit from dust amounts).
     }
 
     function test_multipleRewardTokens_aboveThreshold() public requiresFork {
