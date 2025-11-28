@@ -83,7 +83,7 @@ contract DeployCvxCrvCompounder is Script {
     address constant VAULT = 0x95f19B19aff698169a1A0BBC28a2e47B14CB9a86;
 
     // === CONFIGURATION ===
-    address constant KEEPER = 0xa88e98bBD2Af6DDD642407cB5455f956f0C553F0; // Exodus wallet
+    address constant KEEPER = 0x52605BbF54845f520a3E94792d019f62407db2f8; // Yearn V3 Keeper (permissionless)
     address constant MANAGEMENT = 0x7bdfE11c4981Dd4c33E1aa62457B8773253791b3; // ycvxcrv.eth
     address constant PERFORMANCE_FEE_RECIPIENT = 0x7bdfE11c4981Dd4c33E1aa62457B8773253791b3;
     address constant EMERGENCY_ADMIN = 0x7bdfE11c4981Dd4c33E1aa62457B8773253791b3;
