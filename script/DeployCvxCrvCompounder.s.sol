@@ -2,9 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import {CvxCrvCompounder} from "../src/CvxCrvCompounder.sol";
 import {CvxCrvCompounderFactory} from "../src/CvxCrvCompounderFactory.sol";
-import {ITokenizedStrategy} from "@tokenized-strategy/interfaces/ITokenizedStrategy.sol";
 
 interface IAuctionFactory {
     function createNewAuction(
@@ -34,11 +32,15 @@ interface IVault {
  *    oldStrategy.manualClaimRewards(true)
  *
  * ============================================================================
- * DEPLOYMENT: New Strategy (11 transactions)
+ * DEPLOYMENT PHASE 1: Deployer (3 transactions)
  * ============================================================================
  * 1. Deploy CvxCrvCompounderFactory
  * 2. Deploy CvxCrvCompounder via factory
  * 3. Deploy auction via AuctionFactory for crvUSD -> cvxCRV
+ *
+ * ============================================================================
+ * DEPLOYMENT PHASE 2: Management (8 transactions) - run by MANAGEMENT
+ * ============================================================================
  * 4. Accept management on strategy
  * 5. Set performance fee to 5%
  * 6. Set auction address on strategy
@@ -133,9 +135,6 @@ contract DeployCvxCrvCompounder is Script {
         address strategyAddress = factory.newStrategy(CVXCRV, STRATEGY_NAME);
         console.log("   -> Strategy deployed at:", strategyAddress);
 
-        CvxCrvCompounder strategy = CvxCrvCompounder(strategyAddress);
-        ITokenizedStrategy tokenizedStrategy = ITokenizedStrategy(strategyAddress);
-
         // === TRANSACTION 3: Deploy Auction via Factory ===
         console.log("\n[TX 3] Deploying Auction via AuctionFactory...");
         console.log("   -> Want (cvxCRV):", CVXCRV);
@@ -149,57 +148,32 @@ contract DeployCvxCrvCompounder is Script {
         );
         console.log("   -> Auction deployed at:", auction);
 
-        // === TRANSACTION 4: Accept Management ===
-        console.log("\n[TX 4] Accepting management...");
-        tokenizedStrategy.acceptManagement();
-        console.log("   -> Management accepted");
-
-        // === TRANSACTION 5: Set Performance Fee to 5% ===
-        console.log("\n[TX 5] Setting performance fee to 5%...");
-        tokenizedStrategy.setPerformanceFee(PERFORMANCE_FEE);
-        console.log("   -> Performance fee set to:", PERFORMANCE_FEE, "bps (5%)");
-
-        // === TRANSACTION 6: Set Auction on Strategy ===
-        console.log("\n[TX 6] Setting auction on strategy...");
-        strategy.setAuction(auction);
-        console.log("   -> Auction set to:", auction);
-
-        // === TRANSACTION 7: Set minAmountToSell for crvUSD ===
-        console.log("\n[TX 7] Setting minAmountToSell for crvUSD...");
-        strategy.setMinAmountToSell(CRVUSD, MIN_CRVUSD_TO_SELL);
-        console.log("   -> Min crvUSD to sell:", MIN_CRVUSD_TO_SELL / 1e18, "crvUSD");
-
-        // === TRANSACTION 8: Set minAmountToSell for CRV (fallback) ===
-        console.log("\n[TX 8] Setting minAmountToSell for CRV...");
-        strategy.setMinAmountToSell(CRV, MIN_CRV_TO_SELL);
-        console.log("   -> Min CRV to sell:", MIN_CRV_TO_SELL / 1e18, "CRV");
-
-        // === TRANSACTION 9: Set minAmountToSell for CVX (fallback) ===
-        console.log("\n[TX 9] Setting minAmountToSell for CVX...");
-        strategy.setMinAmountToSell(CVX, MIN_CVX_TO_SELL);
-        console.log("   -> Min CVX to sell:", MIN_CVX_TO_SELL / 1e18, "CVX");
-
-        // === TRANSACTION 10: Set Reward Weight (100% crvUSD) ===
-        console.log("\n[TX 10] Setting reward weight for 100% crvUSD...");
-        strategy.setRewardWeight(REWARD_WEIGHT);
-        console.log("   -> Reward weight set to: 10000 (100% crvUSD)");
-
-        // === TRANSACTION 11: Add Strategy to Vault ===
-        console.log("\n[TX 11] Adding strategy to vault...");
-        console.log("   -> Vault:", VAULT);
-        IVault(VAULT).add_strategy(strategyAddress);
-        console.log("   -> Strategy added to vault");
-
         vm.stopBroadcast();
 
-        // === DEPLOYMENT SUMMARY ===
+        // === PHASE 1 COMPLETE ===
         console.log("\n========================================");
-        console.log("DEPLOYMENT COMPLETE!");
+        console.log("PHASE 1 COMPLETE - Contracts Deployed!");
         console.log("========================================");
         console.log("Factory:", address(factory));
         console.log("Strategy:", strategyAddress);
         console.log("Auction:", auction);
-        console.log("\nConfiguration:");
+        console.log("\n========================================");
+        console.log("PHASE 2 - Management must run these txs:");
+        console.log("========================================");
+        console.log("From address:", MANAGEMENT);
+        console.log("");
+        console.log("4. strategy.acceptManagement()");
+        console.log("5. strategy.setPerformanceFee(500)");
+        console.log("6. strategy.setAuction(", auction, ")");
+        console.log("7. strategy.setMinAmountToSell(CRVUSD, 50e18)");
+        console.log("8. strategy.setMinAmountToSell(CRV, 100e18)");
+        console.log("9. strategy.setMinAmountToSell(CVX, 50e18)");
+        console.log("10. strategy.setRewardWeight(10000)");
+        console.log("11. vault.add_strategy(", strategyAddress, ")");
+        console.log("");
+
+        // === CONFIGURATION SUMMARY ===
+        console.log("Configuration (to be set in Phase 2):");
         console.log("  Asset (cvxCRV):", CVXCRV);
         console.log("  Management:", MANAGEMENT);
         console.log("  Keeper:", KEEPER);
@@ -208,33 +182,10 @@ contract DeployCvxCrvCompounder is Script {
         console.log("  Min crvUSD to Sell: 50 crvUSD");
         console.log("  Min CRV to Sell: 100 CRV (fallback)");
         console.log("  Min CVX to Sell: 50 CVX (fallback)");
-        console.log("\nAuction Configuration:");
-        console.log("  Selling: crvUSD");
-        console.log("  Receiving: cvxCRV");
-        console.log("  Factory:", AUCTION_FACTORY);
         console.log("\nVault:", VAULT);
         console.log("\n========================================");
-        console.log("Total transactions: 11");
-        console.log("========================================");
-        console.log("\nNEXT STEPS (MIGRATION):");
-        console.log("========================================");
-        console.log("1. Verify contracts on Etherscan");
-        console.log("");
-        console.log("2. Migrate debt from old strategy:");
-        console.log("   Old Strategy: 0x5efa37f0be827d55529832b5961dc3c160b5c725");
-        console.log("   a) vault.update_debt(oldStrategy, 0)");
-        console.log("   b) oldStrategy.report()");
-        console.log("   c) vault.update_debt(newStrategy, amount)");
-        console.log("");
-        console.log("3. Wait for old strategy profits to unlock");
-        console.log("   - Continue reporting on old strategy");
-        console.log("   - Check fullProfitUnlockDate()");
-        console.log("");
-        console.log("4. Once fully migrated:");
-        console.log("   vault.revoke_strategy(oldStrategy)");
-        console.log("");
-        console.log("5. (Optional) Configure auction parameters");
-        console.log("6. (Optional) Set up CommonReportTrigger");
+        console.log("Phase 1: 3 txs (deployer)");
+        console.log("Phase 2: 8 txs (management)");
         console.log("========================================");
     }
 }
