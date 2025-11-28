@@ -10,11 +10,16 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AuctionSwapper, Auction} from "@periphery/swappers/AuctionSwapper.sol";
 
 /**
- * @title Convex stkCvxCrv Compounder
+ * @title Convex cvxCRV Compounder
  * @notice This strategy stakes cvxCRV via a wrapper to earn CRV, CVX, and crvUSD rewards, then compounds these rewards back into cvxCRV.
  */
 contract CvxCrvCompounder is BaseStrategy, AuctionSwapper {
     using SafeERC20 for IERC20;
+
+    // --- Custom Errors ---
+    error AuctionWantMismatch();
+    error CannotAuctionAsset();
+    error CannotAuctionWrapper();
 
     // --- Constants ---
     ICvxCrvStakingWrapper public constant WRAPPER = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
@@ -105,7 +110,7 @@ contract CvxCrvCompounder is BaseStrategy, AuctionSwapper {
      */
     function setAuction(address _auction) external onlyManagement {
         if (_auction != address(0)) {
-            require(Auction(_auction).want() == address(asset), "Auction want must be asset");
+            if (Auction(_auction).want() != address(asset)) revert AuctionWantMismatch();
         }
         _setAuction(_auction);
     }
@@ -199,8 +204,8 @@ contract CvxCrvCompounder is BaseStrategy, AuctionSwapper {
      * @param _from The token to auction
      */
     function _kickAuction(address _from) internal override returns (uint256) {
-        require(_from != address(asset), "Cannot auction strategy asset");
-        require(_from != address(WRAPPER), "Cannot auction wrapper");
+        if (_from == address(asset)) revert CannotAuctionAsset();
+        if (_from == address(WRAPPER)) revert CannotAuctionWrapper();
         return super._kickAuction(_from);
     }
 }

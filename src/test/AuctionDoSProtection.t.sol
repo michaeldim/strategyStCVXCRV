@@ -267,7 +267,7 @@ contract AuctionDoSProtectionTest is Test {
 
     function test_kickAuction_cannotKickAsset() public requiresFork {
         vm.prank(keeper);
-        vm.expectRevert("Cannot auction strategy asset");
+        vm.expectRevert(CvxCrvCompounder.CannotAuctionAsset.selector);
         _strategy.kickAuction(CVXCRV);
     }
 
